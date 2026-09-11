@@ -1,0 +1,42 @@
+[
+  {
+    "feature_set": "CUF-only",
+    "task": "cost_overrun_classification",
+    "baseline_accuracy": 0.6244,
+    "baseline_f1": 0.4599,
+    "baseline_auc": 0.6549,
+    "ml_accuracy": 0.7843,
+    "ml_f1": 0.4785,
+    "ml_auc": 0.7635,
+    "n_train": 1574,
+    "n_test": 394
+  },
+  {
+    "feature_set": "CUF+extra",
+    "task": "cost_overrun_classification",
+    "baseline_accuracy": 0.6574,
+    "baseline_f1": 0.5018,
+    "baseline_auc": 0.6962,
+    "ml_accuracy": 0.7766,
+    "ml_f1": 0.4762,
+    "ml_auc": 0.8101,
+    "n_train": 1574,
+    "n_test": 394
+  },
+  {
+    "feature_set": "CUF-only",
+    "task": "cost_overrun_pct_regression",
+    "baseline_mae": 16.618,
+    "baseline_r2": 0.2263,
+    "ml_mae": 17.614,
+    "ml_r2": 0.0526
+  },
+  {
+    "feature_set": "CUF+extra",
+    "task": "cost_overrun_pct_regression",
+    "baseline_mae": 15.459,
+    "baseline_r2": 0.3634,
+    "ml_mae": 15.909,
+    "ml_r2": 0.2536
+  }
+]

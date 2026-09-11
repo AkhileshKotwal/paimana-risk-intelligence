@@ -1,0 +1,76 @@
+{
+  "test_month": "2026-07",
+  "test": {
+    "accuracy": 0.8963,
+    "precision": 0.9299,
+    "recall": 0.6432,
+    "f1": 0.7604,
+    "roc_auc": 0.9498,
+    "pr_auc": 0.8884,
+    "brier_score": 0.0807,
+    "sample_size": 1775,
+    "positive_rate": 0.2558
+  },
+  "top_features": [
+    {
+      "feature": "ministry_Ministry of Road Transport & Highways",
+      "importance": 0.052804745733737946
+    },
+    {
+      "feature": "cumulative_expenditure_cr",
+      "importance": 0.046625882387161255
+    },
+    {
+      "feature": "expenditure_pct_of_original",
+      "importance": 0.037963151931762695
+    },
+    {
+      "feature": "agency_National Highways Authority of India [NHAI]",
+      "importance": 0.035929061472415924
+    },
+    {
+      "feature": "sector_Roads & Highways",
+      "importance": 0.03069586306810379
+    },
+    {
+      "feature": "approval_year",
+      "importance": 0.029149247333407402
+    },
+    {
+      "feature": "ministry_Ministry of Coal",
+      "importance": 0.02477928251028061
+    },
+    {
+      "feature": "agency_NHAI",
+      "importance": 0.02129914052784443
+    },
+    {
+      "feature": "ministry_Ministry of Petroleum & Natural Gas",
+      "importance": 0.019172344356775284
+    },
+    {
+      "feature": "sector_Railways",
+      "importance": 0.01794472150504589
+    },
+    {
+      "feature": "sector_Coal",
+      "importance": 0.016989825293421745
+    },
+    {
+      "feature": "agency_hist_cost_overrun_pct",
+      "importance": 0.01567755825817585
+    },
+    {
+      "feature": "agency_NHIDCL",
+      "importance": 0.015638062730431557
+    },
+    {
+      "feature": "sector_Oil & Gas",
+      "importance": 0.01476583257317543
+    },
+    {
+      "feature": "state_Gujarat",
+      "importance": 0.01474287174642086
+    }
+  ]
+}

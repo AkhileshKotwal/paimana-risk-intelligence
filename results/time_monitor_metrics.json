@@ -1,0 +1,76 @@
+{
+  "test_month": "2026-07",
+  "test": {
+    "accuracy": 0.9443,
+    "precision": 0.9668,
+    "recall": 0.9458,
+    "f1": 0.9562,
+    "roc_auc": 0.9868,
+    "pr_auc": 0.9929,
+    "brier_score": 0.0418,
+    "sample_size": 1725,
+    "positive_rate": 0.6423
+  },
+  "top_features": [
+    {
+      "feature": "physical_progress_pct",
+      "importance": 0.1278214156627655
+    },
+    {
+      "feature": "ministry_Ministry of Road Transport & Highways",
+      "importance": 0.058704063296318054
+    },
+    {
+      "feature": "project_age_months",
+      "importance": 0.054511554539203644
+    },
+    {
+      "feature": "start_year",
+      "importance": 0.05396018922328949
+    },
+    {
+      "feature": "agency_hist_time_overrun_rate",
+      "importance": 0.046778351068496704
+    },
+    {
+      "feature": "planned_duration_months",
+      "importance": 0.03949533402919769
+    },
+    {
+      "feature": "ministry_Ministry of Power",
+      "importance": 0.024038299918174744
+    },
+    {
+      "feature": "sector_Roads & Highways",
+      "importance": 0.02372056618332863
+    },
+    {
+      "feature": "approval_year",
+      "importance": 0.02292410284280777
+    },
+    {
+      "feature": "agency_MoRTH",
+      "importance": 0.018640784546732903
+    },
+    {
+      "feature": "agency_Power Grid Corporation of India Limited [POWERGRID]",
+      "importance": 0.016591748222708702
+    },
+    {
+      "feature": "sector_Coal",
+      "importance": 0.015765519812703133
+    },
+    {
+      "feature": "ministry_Ministry of Coal",
+      "importance": 0.015179249458014965
+    },
+    {
+      "feature": "agency_National Highways Authority of India [NHAI]",
+      "importance": 0.015143241733312607
+    },
+    {
+      "feature": "state_Maharashtra",
+      "importance": 0.015114277601242065
+    }
+  ]
+}
