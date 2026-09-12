@@ -320,7 +320,7 @@ export const ProjectMonitoringView = ({ projects = [], onSelectProject }) => {
           )}
         </div>
         <div>
-          Tip: Click on any project row to inspect its detailed risk profile, 4-month temporal evolution, and SHAP risk drivers.
+          Tip: Click on any project row to inspect its detailed risk profile, four-month telemetry history, and evidence-based drivers.
         </div>
       </div>
 

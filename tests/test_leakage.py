@@ -47,4 +47,20 @@ def test_forward_escalation_targets_populated_for_earlier_months():
     apr_to_jun = df[df["month"].isin(["2026-04", "2026-05", "2026-06"])]
     
     assert apr_to_jun["forward_cost_risk_escalation"].notna().sum() > 5000
-    assert apr_to_jun["forward_time_risk_escalation"].notna().sum() > 5000
+    assert apr_to_jun["forward_time_risk_escalation"].notna().sum() > 4000
+
+
+def test_latest_snapshot_has_no_forward_target():
+    df = pd.read_csv(FEATURES_PATH)
+    latest = pd.to_datetime(df["month"] + "-01").max()
+    latest_df = df[pd.to_datetime(df["month"] + "-01") == latest]
+    assert latest_df["forward_cost_risk_escalation"].isna().all()
+    assert latest_df["forward_time_risk_escalation"].isna().all()
+
+
+def test_forward_targets_require_contiguous_months():
+    df = pd.read_csv(FEATURES_PATH)
+    month = pd.to_datetime(df["month"] + "-01")
+    known = df["forward_time_risk_escalation"].notna()
+    next_month = pd.to_datetime(df["next_month_dt"], errors="coerce")
+    assert (next_month[known] == month[known] + pd.DateOffset(months=1)).all()

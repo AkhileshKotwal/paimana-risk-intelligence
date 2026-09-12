@@ -56,3 +56,15 @@ def test_july_2026_active_inventory():
     assert len(jul_df) == 1775, f"Expected exactly 1,775 July projects, found {len(jul_df)}"
     # All active projects must have a project_code
     assert jul_df["project_code"].notna().all(), "Found missing project codes in July snapshot"
+
+
+def test_project_month_keys_are_unique():
+    df = pd.read_csv(RAW_PATH)
+    assert not df.duplicated(["project_code", "month"]).any()
+
+
+def test_quality_report_passes():
+    import json
+    report = json.loads((ROOT / "data" / "data_quality_report.json").read_text(encoding="utf-8"))
+    assert report["status"] == "pass"
+    assert report["critical_issue_count"] == 0

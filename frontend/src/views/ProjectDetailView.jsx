@@ -147,14 +147,14 @@ export const ProjectDetailView = ({ project, onBack, onSelectProject }) => {
               <span className="text-xl font-bold font-mono text-amber-600">
                 {project.cost_risk_score.toFixed(1)}%
               </span>
-              <span className="text-[10px] text-slate-400 block">ML Probability</span>
+              <span className="text-[10px] text-slate-400 block">Uncalibrated model score</span>
             </div>
             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-center flex-1">
               <span className="text-[10px] uppercase font-semibold text-slate-500 block">Schedule Slippage Risk</span>
               <span className="text-xl font-bold font-mono text-orange-600">
                 {project.time_risk_score.toFixed(1)}%
               </span>
-              <span className="text-[10px] text-slate-400 block">ML Probability</span>
+              <span className="text-[10px] text-slate-400 block">Uncalibrated model score</span>
             </div>
           </div>
         </div>
@@ -260,7 +260,7 @@ export const ProjectDetailView = ({ project, onBack, onSelectProject }) => {
               Temporal Evolution (April 2026 → July 2026)
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Multi-month trajectory of Physical Progress, Cumulative Expenditure, and Model Risk Probability
+              Multi-month trajectory of Physical Progress, Cumulative Expenditure, and Model Risk Score
             </p>
           </div>
           <span className="text-xs font-mono bg-blue-50 text-blue-800 px-2.5 py-1 rounded border border-blue-200">
@@ -311,7 +311,7 @@ export const ProjectDetailView = ({ project, onBack, onSelectProject }) => {
           <div>
             <div className="text-xs font-semibold text-slate-800 mb-2 flex items-center justify-between">
               <span>Predictive Risk Score Trajectory (%)</span>
-              <span className="text-[11px] text-slate-400 font-normal">Temporal Model Probability</span>
+              <span className="text-[11px] text-slate-400 font-normal">Temporal Model Risk Score</span>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -362,7 +362,7 @@ export const ProjectDetailView = ({ project, onBack, onSelectProject }) => {
               Explainable Decision Support: Why is this project at risk?
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Deterministic, evidence-grounded risk drivers generated from SHAP feature impacts and observable project telemetry
+              Evidence-grounded drivers from observable project telemetry and global model feature importance. Local SHAP values are not claimed.
             </p>
           </div>
           <span className="text-[11px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-200">
@@ -382,7 +382,7 @@ export const ProjectDetailView = ({ project, onBack, onSelectProject }) => {
                 <div key={i} className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg text-xs">
                   <div className="flex items-center justify-between font-semibold text-amber-900">
                     <span>{d.label}</span>
-                    <span className="font-mono text-amber-700">+{d.impact} SHAP</span>
+                      <span className="font-mono text-amber-700">+{d.impact} driver score</span>
                   </div>
                   <div className="w-full bg-amber-200/60 rounded-full h-1.5 mt-2">
                     <div
@@ -409,7 +409,7 @@ export const ProjectDetailView = ({ project, onBack, onSelectProject }) => {
                 <div key={i} className="p-3 bg-orange-50/60 border border-orange-200 rounded-lg text-xs">
                   <div className="flex items-center justify-between font-semibold text-orange-900">
                     <span>{d.label}</span>
-                    <span className="font-mono text-orange-700">+{d.impact} SHAP</span>
+                      <span className="font-mono text-orange-700">+{d.impact} driver score</span>
                   </div>
                   <div className="w-full bg-orange-200/60 rounded-full h-1.5 mt-2">
                     <div
@@ -474,7 +474,7 @@ export const ProjectDetailView = ({ project, onBack, onSelectProject }) => {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-600 text-white rounded uppercase tracking-wider">
-                      Primary Match #{project.comparable.similarity_pct ? `${project.comparable.similarity_pct}% Sim` : '1'}
+                      Primary Match #{project.comparable.rank || '1'}
                     </span>
                     <span className="text-sm font-bold text-slate-900">
                       {project.comparable.project_name}
@@ -532,7 +532,7 @@ export const ProjectDetailView = ({ project, onBack, onSelectProject }) => {
                       <th className="py-2 px-3">#</th>
                       <th className="py-2 px-3">Precedent Project Name</th>
                       <th className="py-2 px-3">Snapshot</th>
-                      <th className="py-2 px-3">Similarity</th>
+                      <th className="py-2 px-3">Similarity Score</th>
                       <th className="py-2 px-3">Cost Overrun</th>
                       <th className="py-2 px-3">Schedule Slippage</th>
                       <th className="py-2 px-3">Match Rationale</th>
@@ -553,7 +553,7 @@ export const ProjectDetailView = ({ project, onBack, onSelectProject }) => {
                         <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">{comp.comparable_month}</td>
                         <td className="py-2.5 px-3 whitespace-nowrap">
                           <span className="font-bold text-indigo-700 font-mono">
-                            {comp.similarity_pct ? `${comp.similarity_pct}%` : 'High'}
+                            {comp.similarity_score != null ? comp.similarity_score.toFixed(4) : 'Unavailable'}
                           </span>
                         </td>
                         <td className="py-2.5 px-3 font-mono">

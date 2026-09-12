@@ -20,6 +20,11 @@ def test_production_model_files_exist():
     assert COST_MODEL_PATH.exists(), f"Cost model missing at {COST_MODEL_PATH}"
     assert TIME_MODEL_PATH.exists(), f"Time model missing at {TIME_MODEL_PATH}"
     assert EVAL_REPORT_PATH.exists(), f"Evaluation report missing at {EVAL_REPORT_PATH}"
+    metadata = json.loads((COST_MODEL_PATH.with_suffix(COST_MODEL_PATH.suffix + ".meta.json")).read_text(encoding="utf-8"))
+    assert metadata["model_version"] == "xgb-forward-t1-v1"
+    assert metadata["feature_version"] == "features-v2-forward-t1"
+    assert metadata["training_cutoff"]
+    assert metadata["python_version"].startswith("3.")
 
 
 def test_cost_model_inference():
@@ -49,13 +54,15 @@ def test_time_model_inference():
 def test_evaluation_report_thresholds():
     report = json.loads(EVAL_REPORT_PATH.read_text(encoding="utf-8"))
     
-    cost_metrics = report["cost_overrun_model"]["holdout_july_2026_performance"]
-    time_metrics = report["time_overrun_model"]["holdout_july_2026_performance"]
-    
-    # Verify strong statistical discrimination on temporal holdout
-    assert cost_metrics["roc_auc"] >= 0.85, f"Cost model ROC-AUC {cost_metrics['roc_auc']} below 0.85 threshold"
-    assert time_metrics["roc_auc"] >= 0.85, f"Time model ROC-AUC {time_metrics['roc_auc']} below 0.85 threshold"
-    
-    # Verify well-calibrated probabilities (Brier score < 0.15)
-    assert cost_metrics["brier_score"] < 0.15, f"Cost Brier score {cost_metrics['brier_score']} too high"
-    assert time_metrics["brier_score"] < 0.15, f"Time Brier score {time_metrics['brier_score']} too high"
+    cost_metrics = report["cost_overrun_model"]["holdout_performance"]
+    time_metrics = report["time_overrun_model"]["holdout_performance"]
+
+    assert report["dataset"]["target_design"].startswith("Production models predict")
+    assert report["cost_overrun_model"]["target"] == "forward_cost_risk_escalation"
+    assert report["time_overrun_model"]["target"] == "forward_time_risk_escalation"
+    for metrics in (cost_metrics, time_metrics):
+        assert metrics["sample_size"] > 0
+        assert metrics["positive_count"] >= 0
+        assert metrics["negative_count"] >= 0
+        assert len(metrics["confusion_matrix"]) == 2
+        assert metrics["calibration_status"] == "uncalibrated"

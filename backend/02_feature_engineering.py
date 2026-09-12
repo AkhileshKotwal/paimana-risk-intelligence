@@ -9,6 +9,10 @@ from pathlib import Path
 import argparse
 import numpy as np
 import pandas as pd
+try:
+    from backend.data_validation import validate_panel
+except ModuleNotFoundError:
+    from data_validation import validate_panel
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -63,7 +67,7 @@ def build_temporal_features(df):
     d["schedule_slippage_months"] = np.where(
         d["revised_doc_dt"].notna() & d["target_doc_dt"].notna(),
         (d["revised_doc_dt"] - d["target_doc_dt"]).dt.days / 30.44,
-        0.0
+        np.nan
     )
     
     # Categorize schedule status
@@ -152,27 +156,38 @@ def build_temporal_features(df):
     d["next_month_slippage_months"] = p_group["schedule_slippage_months"].shift(-1)
     d["next_month_is_cost_overrun"] = p_group["is_cost_overrun"].shift(-1)
     d["next_month_is_time_overrun"] = p_group["is_time_overrun"].shift(-1)
+    d["next_month_dt"] = p_group["month_dt"].shift(-1)
+
+    next_month_is_contiguous = d["next_month_dt"].eq(d["month_dt"] + pd.DateOffset(months=1))
+    known_next_cost = next_month_is_contiguous & d["next_month_is_cost_overrun"].notna()
+    known_next_time = (
+        next_month_is_contiguous
+        & d["next_month_is_time_overrun"].notna()
+        & d["next_month_slippage_months"].notna()
+        & d["is_time_overrun"].notna()
+        & d["schedule_slippage_months"].notna()
+    )
 
     # Target 1: Enters or deteriorates cost risk in T+1 (cost overrun increases by >2% or newly exceeds threshold)
     cost_escalated = (
-        (d["next_month_cost_overrun_pct"] > (d["cost_overrun_pct"].fillna(0) + 2.0)) |
-        ((d["is_cost_overrun"].fillna(0) == 0) & (d["next_month_is_cost_overrun"].fillna(0) == 1))
-    ).fillna(False)
+        (d["next_month_cost_overrun_pct"] > (d["cost_overrun_pct"] + 2.0)) |
+        ((d["is_cost_overrun"] == 0) & (d["next_month_is_cost_overrun"] == 1))
+    )
 
     time_escalated = (
-        (d["next_month_slippage_months"] > (d["schedule_slippage_months"].fillna(0) + 2.0)) |
-        ((d["is_time_overrun"].fillna(0) == 0) & (d["next_month_is_time_overrun"].fillna(0) == 1))
-    ).fillna(False)
+        (d["next_month_slippage_months"] > (d["schedule_slippage_months"] + 2.0)) |
+        ((d["is_time_overrun"] == 0) & (d["next_month_is_time_overrun"] == 1))
+    )
 
     d["forward_cost_risk_escalation"] = np.where(
-        d["next_month_cost_overrun_pct"].notna(),
-        cost_escalated.astype(int),
+        known_next_cost,
+        cost_escalated.fillna(False).astype(int),
         np.nan
     )
 
     d["forward_time_risk_escalation"] = np.where(
-        d["next_month_slippage_months"].notna(),
-        time_escalated.astype(int),
+        known_next_time,
+        time_escalated.fillna(False).astype(int),
         np.nan
     )
 
@@ -211,6 +226,9 @@ def main():
 
     print(f"Loading raw PAIMANA records from {args.input}...")
     raw_df = load_and_clean_raw(args.input)
+    quality_report = validate_panel(raw_df, fail_on_critical=True)
+    quality_path = Path(args.output).parent / "data_quality_report.json"
+    quality_path.write_text(__import__("json").dumps(quality_report, indent=2), encoding="utf-8")
     print(f"Loaded {len(raw_df):,} records. Building temporal feature store...")
     
     features_df = build_temporal_features(raw_df)

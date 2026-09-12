@@ -99,31 +99,9 @@ export default function Dashboard() {
       "Keep answers to 2-4 sentences, plain language suitable for a government official reviewing the project.\n\n" +
       "STRUCTURED PROJECT DATA:\n" + JSON.stringify(contextData, null, 2);
 
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 400,
-          system: systemPrompt,
-          messages: nextMessages.map((m) => ({ role: m.role, content: m.text })),
-        }),
-      });
-      const data = await response.json();
-      const text = (data.content || [])
-        .filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("\n") || "I wasn't able to generate a response from the project data.";
-      setChatMessages((prev) => [...prev, { role: "assistant", text }]);
-    } catch (err) {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", text: "Assistant is unavailable right now — couldn't reach the model." },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
+    const text = `This local prototype has no external assistant integration. Stored telemetry shows ${fmtPct(selected.co)} cost overrun and ${fmtPct(selected.ts)} schedule slippage for ${selected.n}.`;
+    setChatMessages((prev) => [...prev, { role: "assistant", text }]);
+    setChatLoading(false);
   }
 
   const rows = useMemo(() => {

@@ -88,6 +88,8 @@ def main():
             candidates = []
             for rank_idx, cand_idx in enumerate(indices[i]):
                 c = hist_df.iloc[cand_idx]
+                if str(c["project_code"]) == str(row["project_code"]):
+                    continue
                 dist = float(distances[i, rank_idx])
                 
                 # Boost score if sector or ministry matches
@@ -95,7 +97,7 @@ def main():
                 same_min = bool(c.get("ministry") == row.get("ministry"))
                 adjusted_dist = dist * (0.6 if (same_sec and same_min) else (0.8 if same_sec else 1.0))
                 
-                similarity_pct = round(100.0 / (1.0 + adjusted_dist), 1)
+                similarity_score = round(1.0 / (1.0 + adjusted_dist), 4)
                 
                 candidates.append({
                     "target_month": row["month"],
@@ -105,7 +107,7 @@ def main():
                     "comparable_project_code": c["project_code"],
                     "comparable_project_name": c.get("project_name", ""),
                     "comparable_month": c["month"],
-                    "similarity_pct": similarity_pct,
+                    "similarity_score": similarity_score,
                     "distance": round(dist, 3),
                     "same_sector": same_sec,
                     "same_ministry": same_min,
@@ -116,7 +118,7 @@ def main():
                 })
 
             # Sort by highest similarity
-            candidates.sort(key=lambda x: x["similarity_pct"], reverse=True)
+            candidates.sort(key=lambda x: x["similarity_score"], reverse=True)
             for rank, item in enumerate(candidates[:args.top_k], start=1):
                 item["rank"] = rank
                 all_comparable_rows.append(item)

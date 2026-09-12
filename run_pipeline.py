@@ -62,7 +62,7 @@ def main():
 
     if run_all or args.train:
         run_step(
-            "2. Multi-Model Walk-Forward Temporal Training & Calibration",
+            "2. Multi-Model Walk-Forward Temporal Training & Honest Evaluation",
             [py, "backend/train_models.py"]
         )
 
@@ -86,7 +86,7 @@ def main():
 
     if run_all or args.test:
         run_step(
-            "6. Executing 20-Point Automated Pytest Suite",
+            "6. Executing Automated Pytest Suite",
             [py, "-m", "pytest", "tests/", "-v"]
         )
 

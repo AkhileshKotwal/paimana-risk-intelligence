@@ -7,7 +7,7 @@
 
 ## 1. Executive Overview
 
-**PAIMANA** transforms the Government of India's infrastructure monitoring framework from a **retrospective reporting log** into an **actionable, predictive early-warning system**.
+**PAIMANA** is a precomputed analytical dashboard with FastAPI scenario inference. Its experimental production models estimate whether cost or schedule risk will escalate in the next contiguous monthly snapshot; the four-month dataset is not evidence for long-horizon forecasting.
 
 Traditional infrastructure monitoring tells authorities what has already gone wrong (cost escalations and schedule slippages after they have occurred). **PAIMANA** analyzes multi-month telemetry across central sector projects (₹150 Crore and above) to detect early indicators of execution distress, predict overrun probabilities before irreversible cost commitments occur, and recommend deterministic administrative interventions.
 
@@ -16,11 +16,11 @@ Traditional infrastructure monitoring tells authorities what has already gone wr
 ## 2. Core Architecture & Highlights
 
 - **Institutional Design System**: Clean, serious, Government of India institutional interface tailored for senior administrators, project directors, and SIH evaluators.
-- **Zero External LLM APIs**: In accordance with government data sovereignty and offline demonstration criteria, the system contains **no external AI chat boxes, zero third-party API dependencies, and no exposed API keys**. All decision support, SHAP attributions, and intervention recommendations are generated deterministically.
+- **Local operation**: The active dashboard uses bundled JSON and deterministic rules. No local SHAP values or official policy classifications are claimed, and the prototype has no authentication.
 - **Full Real Dataset Ingestion**: Operates on **1,775 central projects** from the latest July 2026 snapshot (and 7,590 historical records across April–July 2026), with real sanctioned budgets, expenditures, physical progress, and milestone dates.
-- **Leakage-Safe Temporal Validation**: Models are trained strictly on earlier snapshots (April–June 2026) and evaluated on hold-out July 2026 telemetry, preventing target leakage and lookahead bias.
-- **Interactive 2D Risk Matrix**: Real-time quadrant mapping (Cost Overrun Risk vs. Schedule Overrun Risk) with immediate focus on the critical upper-right quadrant.
-- **4-Month Temporal Evolution**: Direct tracking of Physical Progress %, Cumulative Expenditure, and Model Probability across April → May → June → July 2026.
+- **Leakage-Safe Temporal Validation**: Forward T+1 targets require a contiguous next-month observation and unknown/censored future labels are excluded. The latest known target month is used for chronological evaluation; July has no observed T+1 label.
+- **Interactive 2D Risk Matrix**: Bundled quadrant mapping (Cost Risk vs. Schedule Risk) with a clear precomputed-data label.
+- **4-Month Temporal Evolution**: Direct tracking of Physical Progress %, Cumulative Expenditure, and schedule/cost telemetry across April → May → June → July 2026. Historical model risk is not fabricated.
 - **SIH Judge Demo Walkthrough (3-Minute Tour)**: An interactive presentation mode walking judges through the national scale, the predictive paradigm shift, flagship case studies, and transparent methodology.
 
 ---
@@ -82,7 +82,7 @@ paimana_prototype/
 │   ├── cost_model_comparison.json     # Feature ablation comparison table
 │   ├── time_model_comparison.json     # Feature ablation comparison table
 │   ├── historical_comparables.csv     # Temporal comparable mappings
-│   ├── project_risk_profiles_full.json# 1,968 risk profiles with SHAP drivers
+│   ├── risk_profiles.json             # 1,775 versioned forward-risk profiles
 │   └── risk_profiles.json             # 1,775 July snapshot risk profiles
 ├── scripts/
 │   └── build_frontend_data.py         # Unified JSON compilation pipeline
@@ -101,9 +101,9 @@ paimana_prototype/
     │   ├── views/
     │   │   ├── OverviewView.jsx       # Command Center KPIs, donut & sector charts
     │   │   ├── ProjectMonitoringView.jsx # Searchable registry across all 1,775 projects
-    │   │   ├── RiskIntelligenceView.jsx  # 2D scatter matrix & SHAP feature impacts
+    │   │   ├── RiskIntelligenceView.jsx  # 2D scatter matrix & observed telemetry drivers
     │   │   ├── EarlyWarningCenterView.jsx# 4-tier deterministic anomaly alerts
-    │   │   ├── ProjectDetailView.jsx     # Telemetry, timelines, 4-month trends, SHAP
+    │   │   ├── ProjectDetailView.jsx     # Telemetry, timelines, 4-month trends, risk drivers
     │   │   ├── PortfolioAnalyticsView.jsx# Agency performance & sector concentration
     │   │   ├── MethodologyView.jsx       # Pipeline, 3 indicator classes, model cards
     │   │   └── DataSourcesView.jsx       # MoSPI Table 6 schema & audit metrics
@@ -121,7 +121,7 @@ paimana_prototype/
 ## 5. Application Structure & Core Features
 
 ### 1. Overview / Command Center
-- **Executive KPIs**: Total Projects (1,775), Sanctioned Outlay (₹31.2 Lakh Cr), Projects at Risk (450+), Cost Overrun Risk Rate (25.6%), Schedule Overrun Risk Rate (64.2%), Average Progress (83.4%).
+- **Executive KPIs**: Total Projects and telemetry summaries are generated from the active July 2026 artifact; threshold-exceedance rates are not presented as probabilities.
 - **Risk Distribution**: Interactive visual breakdown across Critical, High, Medium, and Low tiers.
 - **Sector Risk Concentration**: Comparative bar chart of project volume vs. high-risk proportion.
 - **State-wise Risk Analysis**: Ranked table of central projects by state jurisdiction.
@@ -142,7 +142,7 @@ paimana_prototype/
   - **Y-axis**: Schedule Overrun Risk (0–100%)
   - **4 Quadrants**: Low/Low (Routine), High Cost/Low Time (Budget Focus), Low Cost/High Time (Timeline Focus), **High/High (Critical Upper-Right Focus)**.
   - Interactive clickable points scaling with project outlay.
-- **SHAP Feature Importance**: Real feature impact rankings demonstrating that agency historical overrun track records (+2.48) and planned durations (+2.15) dominate pure budget scale.
+- **Explanation boundary**: Observable telemetry triggers and global feature importance may be shown. Local SHAP values are not implemented or claimed.
 
 ### 4. Early Warning Center (Deterministic Alerts)
 - **4 Operational Tiers**:
@@ -161,7 +161,7 @@ paimana_prototype/
 - **Temporal Risk Evolution (April → May → June → July)**:
   - Line charts displaying 4-month evolution of Physical Progress %, Cumulative Expenditure (₹ Cr), and Risk Score %.
   - Trend Indicator (↑ Increasing, → Stable, ↓ Decreasing).
-- **"Why is this project at risk?"**: Deterministic SHAP drivers with quantified impact bars.
+- **"Why is this project at risk?"**: Deterministic telemetry triggers and clearly labeled global feature importance.
 - **Recommended Actions**: Context-specific operational guidance.
 - **Nearest Comparable Project**: Historically valid precedent identified from earlier snapshots without target leakage.
 
@@ -171,14 +171,15 @@ paimana_prototype/
 - **Ministry Oversight Breakdown**: Comparative project volume and risk concentration.
 
 ### 7. Transparent Methodology & Model Cards
-- **Data Pipeline Flow**: Ingestion → Extraction → Feature Engineering → Temporal Analysis → Leakage-Safe Training → SHAP Attribution → Early Warning.
+- **Data Pipeline Flow**: Normalized panel → validation → feature engineering → contiguous T+1 target generation → chronological training/evaluation → canonical scoring → artifact generation → FastAPI/frontend.
 - **Three Indicator Classes**:
   1. *Observed Indicators*: Direct reported PAIMANA telemetry.
   2. *Derived Indicators*: Calculated operational rates and velocities.
   3. *Predictive Indicators*: ML-generated probabilities and risk attributions.
 - **Model Cards & Exact Validated Test Metrics**:
-  - Cost Monitor (XGBoost): ROC-AUC 0.952, PR-AUC 0.895, Precision 0.929, Recall 0.632, F1 0.752, Brier 0.079 (n=1,775).
-  - Schedule Monitor (XGBoost): ROC-AUC 0.987, PR-AUC 0.993, Precision 0.967, Recall 0.952, F1 0.960, Brier 0.040 (n=1,725).
+  - Forward cost escalation: ROC-AUC 0.5766, PR-AUC 0.0516, F1 0.0000, Brier 0.0410 (n=1,732; 71 positives).
+  - Forward time escalation: ROC-AUC 0.5286, PR-AUC 0.1088, F1 0.0000, Brier 0.1051 (n=1,404; 142 positives).
+  - Both models are uncalibrated; these metrics are weak and must not be marketed as strong prediction.
 - **Documented Assumptions & Known Limitations**: Transparent discussion of 4-month snapshot availability, approval year vintage effects, and censored time label treatment.
 
 ### 8. Data Sources & Quality Indicators
@@ -190,7 +191,7 @@ paimana_prototype/
 - Modal providing a curated 6-step walkthrough for hackathon judges:
   1. Scale of the problem (₹31.2 Lakh Cr portfolio, 64.2% slippage).
   2. Paradigm shift (Predictive early warning vs. static retrospective logs).
-  3. Flagship case study (Solan-Kaithlighat NH-5, Project #619003).
+  3. Current priority case study selected dynamically from the generated project ranking.
   4. 2D Risk Matrix navigation.
   5. Deterministic early warning center.
   6. Academic rigor and leakage-safe validation.
@@ -202,8 +203,8 @@ paimana_prototype/
 The data integration pipeline bridges the Python machine learning backend and the React frontend:
 
 1. `data/snapshot_features.csv` contains all 7,590 project-month records from official PAIMANA flash reports (April to July 2026).
-2. `backend/03_train_cost_overrun_model.py` and `backend/04_train_time_overrun_model.py` train XGBoost classifiers on April–June data and evaluate strictly on hold-out July 2026 data.
-3. `scripts/build_frontend_data.py` unifies project metadata, temporal histories, SHAP drivers, comparable project links, and exact evaluation metrics into `frontend/src/data/paimana_data.json` and `frontend/public/data/paimana_data.json`.
+2. `backend/train_models.py` trains forward T+1 XGBoost classifiers with chronological evaluation; July has no observed future target.
+3. `scripts/build_frontend_data.py` unifies project metadata, observed telemetry histories, non-SHAP explanations, comparable project links, and generated evaluation metrics into the frontend JSON files.
 4. `frontend/src/services/` provides reactive filtering, searching, sorting, pagination, and quadrant categorization.
 
 ---
@@ -214,7 +215,7 @@ For a 2–3 minute demonstration to SIH evaluators, inspect these representative
 
 | Project Code | Name | Agency | Key Demonstration Aspect |
 |---|---|---|---|
-| **619003** | Solan - Kaithlighat Section of NH-5 | NHAI | **Progress Stagnation**: Progress flat at 90.11% across 4 months while expenditure doubled (+106%); +66 months delay; 99.5% overall risk. |
+| Dynamic | Highest current priority project | Generated from the active dataset | Observed telemetry and forward ML scores are shown separately. |
 | **602185** | Tapovan-Vishnugad HEP [4x130 MW] | NTPC | **Severe Capital Escalation**: +266.3% cost overrun, +193 months schedule slippage. |
 | **702637** | Mumbai Metro Line 3 | MMRC | **Urban Transit Complexity**: High capital scale (₹23,136 Cr) with +61.1% cost escalation and +29 months slippage. |
 | **705237** | Western Dedicated Freight Corridor | DFCCIL | **Mega Multi-State Project**: ₹51,101 Cr sanctioned outlay with +142.7% cost escalation across 5 states. |
@@ -234,14 +235,14 @@ For a 2–3 minute demonstration to SIH evaluators, inspect these representative
 ## 9. Security & Governance
 
 - **No API Keys**: No Anthropic, OpenAI, Gemini, or third-party cloud credentials exist in frontend code or environment variables.
-- **Air-Gapped Operation**: The entire system can run in air-gapped government environments without internet connectivity.
+- **Prototype deployment**: Bundled data can be served locally; authentication, authorization, rate limiting, and production TLS are not implemented.
 - **Privacy & Data Grounding**: All figures are strictly derived from published MoSPI flash reports.
 
 ---
 
 ## 9. FastAPI REST Backend & API Reference
 
-PAIMANA includes a production-grade FastAPI REST server supporting real-time scenario simulation, programmatic telemetry access, and model inference.
+PAIMANA includes a FastAPI prototype supporting scenario simulation, programmatic telemetry access, and model inference. The dashboard itself uses precomputed JSON rather than live API polling.
 
 ### Launching the API Server
 ```bash
@@ -256,7 +257,7 @@ Interactive Swagger Documentation is immediately available at: **`http://localho
 | `/api/health` | `GET` | Health check, loaded models, and inventory count (1,775 projects) |
 | `/api/portfolio` | `GET` | Aggregate capital outlay, sector concentration, and agency rankings |
 | `/api/projects` | `GET` | Filtered, searchable, sorted, and paginated project registry |
-| `/api/projects/{id}` | `GET` | Complete project dossier with 4-month telemetry, SHAP drivers, and Top-5 precedents |
+| `/api/projects/{id}` | `GET` | Complete project dossier with 4-month telemetry, risk drivers, and Top-5 precedents |
 | `/api/alerts` | `GET` | 4-tier early-warning alert feed with level filtering |
 | `/api/models/evaluation` | `GET` | Walk-forward cross-validation benchmark and feature importances |
 | `/api/predict` | `POST` | Live what-if scenario testing and deterministic recommendation generation |
@@ -274,7 +275,7 @@ python -m pytest tests/ -v
 **Test Coverage Breakdown**:
 - `tests/test_data_pipeline.py`: Snapshot record counts (7,590 total, 1,775 July), non-negative financial constraints, progress boundaries (0–100%).
 - `tests/test_leakage.py`: Strictly asserts that April 2026 historical track records are NaN, subsequent months use strictly prior snapshots, and July forward escalation targets are unobserved.
-- `tests/test_models.py`: Production pipeline loading, probability bounds [0.0, 1.0], and discrimination benchmarks (ROC-AUC ≥ 0.85, Brier score < 0.15).
+- `tests/test_models.py`: Production pipeline loading, forward-target metadata, metric generation, and contract checks. The current forward model is weak and no accuracy threshold is asserted.
 - `tests/test_api.py`: FastAPI endpoints (`/api/health`, `/api/portfolio`, `/api/projects`, `/api/alerts`, `POST /api/predict`).
 
 ---
@@ -282,23 +283,23 @@ python -m pytest tests/ -v
 ## 11. SIH Pitch Scripts for Presentation
 
 ### A. 30-Second Elevator Pitch
-> *"Hon'ble Judges, India monitors ₹31.2 Lakh Crore across 1,775 central infrastructure projects using MoSPI's monthly flash reports. But traditional monitoring is retrospective—it documents delays and cost overruns only after public capital has been committed. We built **PAIMANA**, an institutional predictive early-warning platform that shifts governance from reactive autopsy to proactive intervention. Using leakage-safe machine learning and multi-month velocity telemetry, PAIMANA identifies risk escalation months in advance, explains root drivers with calibrated SHAP attributions, and provides deterministic administrative action items—with zero external LLM dependencies, ensuring 100% data sovereignty."*
+> *"Hon'ble Judges, India monitors central infrastructure projects using MoSPI's monthly flash reports. We built **PAIMANA**, a local analytical prototype combining telemetry, leakage-safe T+1 target construction, and deterministic action rules. The four-month panel supports a one-month transition experiment, not a claim of long-horizon forecasting or calibrated probabilities."*
 
 ### B. 1-Minute Executive Pitch
 > *"Distinguished Evaluators, when a ₹5,000 Crore highway or rail project slips by 36 months, the cost escalation rarely happens overnight. It begins with micro-signals: physical progress decelerating below 0.5% per month while contractor disbursements continue at ₹20 Crore monthly.
 >
-> Today, those warning signs are buried across 500-page PDF tables. **PAIMANA** changes that. We ingested 7,590 project-month records from MoSPI Table 6 across April to July 2026. Rather than relying on fragile AI chatbots, PAIMANA uses calibrated XGBoost models validated across sequential walk-forward temporal splits, achieving a 0.952 ROC-AUC for cost overrun and 0.987 for schedule slippage.
+> Today, those warning signs are buried across PDF tables. **PAIMANA** packages 7,590 project-month records from MoSPI Table 6 across April to July 2026. Its forward T+1 XGBoost experiments are uncalibrated and weak on the latest holdout, so the dashboard is a transparent prototype rather than a validated production forecaster.
 >
-> Senior administrators get an interactive 2D Risk Matrix highlighting upper-right critical projects, 4-month physical-versus-financial velocity curves, Top-5 historical precedents, and deterministic operational action items. PAIMANA is production-ready, runs locally without cloud API costs, and delivers actionable governance for Viksit Bharat 2047."*
+> Senior administrators get an interactive 2D Risk Matrix, four-month physical-versus-financial telemetry, Top-5 historical precedents, and deterministic operational action items. PAIMANA is an SIH prototype, not a production-ready forecasting service."*
 
 ### C. 2-Minute Technical Pitch
 > *"Judges, let us address the engineering rigor behind PAIMANA. Infrastructure monitoring models frequently suffer from target leakage and lookahead bias when trained on static cross-sections. We eliminated this through three strict architectural guardrails:
 >
-> First, **Temporal Walk-Forward Validation**: We benchmarked Logistic Regression, Random Forest, and XGBoost across chronological monthly folds—April predicting May, April-May predicting June, and April-June validating on our holdout July 2026 dataset of 1,775 active projects. XGBoost demonstrated superior discrimination, achieving 0.952 ROC-AUC on cost and 0.987 on schedule slippage, with Brier calibration scores below 0.08.
+> First, **Temporal Walk-Forward Validation**: We benchmarked Logistic Regression, Random Forest, and XGBoost across chronological T+1 folds. The final target-bearing holdout contains 1,732 cost examples and 1,404 time examples; measured XGBoost ROC-AUC is 0.5766 and 0.5286 respectively. These are weak, uncalibrated results and are reported as such.
 >
 > Second, **Leakage-Safe Feature Engineering**: Agency, sector, and ministry historical performance indicators are computed strictly using expanding windows from snapshots prior to the observation month. For schedule modeling, censored projects—those exceeding target completion dates without declared revisions—are explicitly flagged and isolated to prevent false on-time assumptions.
 >
-> Third, **Deterministic Decision Support**: We replaced arbitrary LLM chat interfaces with mathematically grounded explainability: top SHAP feature impacts, rule-based operational triggers, and a Top-5 Nearest Neighbors historical precedent lookup that queries strictly earlier snapshots to surface analogous projects with verified outcomes.
+> Third, **Deterministic Decision Support**: The active dashboard uses observable telemetry triggers, a canonical score, and a Top-5 nearest-neighbor precedent lookup over strictly earlier snapshots. Local SHAP attribution is not implemented or claimed.
 >
 > The system is backed by an automated 20-point pytest suite, a FastAPI REST backend, and a zero-dependency local web server. It is robust, auditable, and ready for immediate deployment in MoSPI."*
 
@@ -307,15 +308,15 @@ python -m pytest tests/ -v
 > *"Good morning, respected judges. On screen is the live PAIMANA Command Center. We are looking at 1,775 ongoing Central Sector projects costing ₹150 Crore and above, representing an approved outlay of ₹31.2 Lakh Crore. Of these, 64.2% face schedule slippages and over ₹5 Lakh Crore in cumulative cost escalations have accumulated. The current monitoring process through MoSPI's monthly flash reports is rigorous, but it is fundamentally retrospective. By the time a project appears on an exception table, contractual claims, scope variations, and utility disputes have already locked in cost overruns."*
 >
 > **[1:00 - 2:00] The Predictive Early Warning Solution**  
-> *"PAIMANA transforms this telemetry into proactive governance. Notice our 4-tier early-warning alert feed: Critical, High, Medium, and Low. Let's filter for Critical alerts. PAIMANA has identified 167 projects in acute distress. But look at how: not through an unpredictable LLM prompt, but through multi-month temporal velocity dynamics. In the 2D Risk Matrix, we map Cost Overrun Probability on the X-axis against Schedule Slippage Probability on the Y-axis. The upper-right quadrant immediately isolates dual-risk projects requiring urgent Cabinet or Inter-Ministerial intervention."*
+> *"PAIMANA transforms this telemetry into transparent prioritization. The alert feed and risk matrix are generated from the current dataset; the current distribution is 0 Critical, 3 High, 39 Medium, and 1,733 Low projects. The axes show uncalibrated model risk scores, not real-world probabilities."*
 >
-> **[2:00 - 3:15] Deep-Dive: Flagship Project Telemetry (Solan-Kaithlighat NH-5)**  
-> *"Let us open a live project: Project #619003, the Solan to Kaithlighat 4-laning of NH-5 executed by NHAI. Look at the financial breakdown: Sanctioned at ₹598 Crore, revised to ₹1,234 Crore (+106% escalation), with a delay of +66 months.
+> **[2:00 - 3:15] Deep-Dive: Current Priority Project**
+> *"Let us open the first project selected dynamically from the current priority ranking. The profile separates observed expenditure, progress, and schedule telemetry from the uncalibrated forward ML risk scores.
 >
-> Now examine the 4-Month Temporal Evolution chart: from April to July 2026, physical progress remained frozen at exactly 90.11%, while cumulative expenditure surged. PAIMANA's deterministic engine flags this immediately: 'Progress Stagnation with High Capital Burn'. Below, our explainability module presents the exact SHAP attribution factors, and our Top-5 Historical Precedent table matches this project against analogous four-lane hill highway projects from earlier snapshots, showing how similar delays were resolved. Crucially, the administrator receives deterministic action items: convenings of the State Land Acquisition committee and forensic audit of milestone billings."*
+> The four-month telemetry history, observed triggers, forward scores, and Top-5 historical precedents are generated from current artifacts. Local SHAP values are not claimed; risk drivers are telemetry indicators and global feature importance where available."*
 >
 > **[3:15 - 4:15] Technical Rigor, Benchmarking & Zero-Leakage Guarantee**  
-> *"Moving to our Methodology view: We compared Logistic Regression, Random Forest, and XGBoost across 3 sequential walk-forward splits. XGBoost achieved 0.952 ROC-AUC on cost and 0.987 on schedule monitoring, with probability calibration verified via Brier scores. All agency and sector historical track records were calculated strictly on prior months—preventing target leakage. All censored schedule observations are systematically handled. Our automated test suite runs 20 continuous verification tests with 100% pass rates."*
+> *"Moving to our Methodology view: the forward T+1 holdout ROC-AUC is 0.5766 for cost and 0.5286 for schedule, with F1 0.0 for both. Scores are uncalibrated, the dataset has only four monthly snapshots, and all censored/unknown future labels are excluded. The automated suite currently has 28 passing tests."*
 >
 > **[4:15 - 5:00] Conclusion & Institutional Value**  
 > *"PAIMANA runs completely offline without external cloud dependencies, protecting sovereign infrastructure telemetry. It requires zero API keys, zero subscription costs, and serves both via a zero-dependency web interface and an open FastAPI REST backend. PAIMANA gives project directors and MoSPI leadership the predictive horizon needed to save thousands of crores in public funds. Thank you, and we welcome your questions."*
@@ -326,44 +327,35 @@ python -m pytest tests/ -v
 
 ### Category 1: Machine Learning & Methodology
 **Q1: How do you prevent data leakage in your time-series features?**  
-*Answer:* We enforce strict chronological isolation. All historical track records—such as `agency_hist_cost_overrun_pct` and `sector_hist_time_overrun_rate`—are generated using expanding windows that only include monthly snapshots strictly prior to the current observation month ($M < T$). In our April 2026 baseline, these features are explicitly set to NaN and imputed, verified by our automated test `test_first_month_has_no_prior_history()`. Furthermore, our holdout test set is July 2026, while training is restricted to April, May, and June 2026.
+*Answer:* We enforce strict chronological isolation. Group history uses months strictly prior to T, and a T+1 label requires the next calendar month. July has no observed T+1 outcome; the final known-target holdout and cutoff are recorded in `MODEL_CARD.md`.
 
 **Q2: What machine learning algorithms did you evaluate, and why did you choose XGBoost?**  
-*Answer:* We evaluated three candidate architectures across sequential walk-forward folds:
-1. Standardized Logistic Regression with balanced class weights (Mean ROC-AUC: 0.8934 on cost, 0.9722 on time).
-2. Random Forest with min-leaf regularization (Mean ROC-AUC: 0.9043 on cost, 0.9555 on time).
-3. Gradient Boosted Decision Trees via XGBoost (Mean ROC-AUC: 0.9518 on cost, 0.9876 on time).
-XGBoost demonstrated superior discrimination, handled nonlinear interactions between expenditure velocity and physical progress effectively, and achieved the lowest Brier calibration scores (0.0807 for cost, 0.0418 for schedule).
+*Answer:* We evaluated Logistic Regression, Random Forest, and XGBoost on chronological T+1 folds. On the final known-target holdout, XGBoost measured ROC-AUC 0.5766 / PR-AUC 0.0516 for cost and ROC-AUC 0.5286 / PR-AUC 0.1088 for time. These are weak, uncalibrated prioritization signals, not proof of production forecasting superiority.
 
 **Q3: How do you handle probability calibration?**  
-*Answer:* Raw classification scores can be overconfident. We evaluated probability calibration using Brier score loss ($0.0807$ on cost and $0.0418$ on schedule) and verified that predicted risk percentages closely track empirical positive rates across probability deciles, ensuring probabilities serve as genuine decision-support confidence scores rather than uncalibrated rank metrics.
+*Answer:* Calibration is not implemented. The artifacts label both production models `uncalibrated`; Brier score and ECE are reported descriptively and do not justify probability-calibration claims.
 
 **Q4: How do you handle censored data where projects have passed their deadline without an updated completion date?**  
 *Answer:* In MoSPI Table 6, numerous projects pass their original Target Date of Completion (DoC) but do not record a formal Revised DoC (`revised_doc = '-'`). Treating these as 'on-time' would cause severe label contamination. We calculate `is_censored = 1` for any project whose snapshot date exceeds original target DoC while revised DoC is missing. These records are systematically isolated during time-overrun model training to prevent false negative label corruption.
 
 **Q5: With only four monthly snapshots (April–July 2026), can you forecast risk 12 months ahead?**  
-*Answer:* We transparently document this as an academic limitation. A 4-month panel enables robust 1-month forward transition modeling ($T+1$) across 3 monthly intervals (Apr→May, May→Jun, Jun→Jul). Attempting to claim 12-month forward forecasting on a 4-month cross-section would represent statistical fabrication. Our model reliably detects *immediate trajectory deterioration* and *current risk status*, and is designed to ingest 24+ monthly cycles as MoSPI publishes further reports.
+*Answer:* We transparently document this as a limitation. A four-month panel supports an experimental T+1 transition target, not reliable long-horizon forecasting. Attempting to claim 12-month forecasting here would be statistical fabrication.
 
-**Q6: What are your top predictive features according to SHAP and feature importance?**  
-*Answer:* For cost overruns, the top predictive drivers are:
-1. `expenditure_pct_of_original`: Ratio of spent funds to sanctioned budget.
-2. `agency_hist_cost_overrun_pct`: Historical agency execution track record.
-3. `progress_minus_expenditure_pct`: Physical-financial divergence gap.
-4. `log_original_cost`: Project scale outlay tier.
-For schedule slippage, planned project duration and approval-to-start gestation lag dominate.
+**Q6: What explanations are available?**
+*Answer:* The dashboard shows observed telemetry drivers and global model feature importance where available. It does not claim local SHAP values.
 
 **Q7: How did you calculate SHAP values without making the application slow?**  
-*Answer:* We pre-computed tree-based SHAP attributions using TreeExplainer on the trained models during feature packaging. For each project, the top 3 positive and negative contributors are serialized directly into the project profile data. This delivers instant sub-millisecond rendering in the UI without runtime overhead or external dependencies.
+*Answer:* We did not calculate SHAP in this release because the exact dependency is not installed and no local attribution should be fabricated. A future implementation must generate values from the exact production model and version them with the feature row.
 
 ---
 
 ### Category 2: Decision Support, Explainability & AI Architecture
 **Q8: Why did you eliminate the AI/LLM chatbot from the prototype?**  
-*Answer:* Infrastructure monitoring of sovereign capital projects requires auditable, deterministic, and verifiable evidence. Large Language Model chatbots hallucinate numbers, require external cloud API calls, expose confidential data to third-party endpoints, and introduce non-deterministic advice that no government project director could legally rely upon. We replaced the chat box with:
-1. Quantified SHAP risk driver bars.
+*Answer:* Infrastructure monitoring requires auditable, deterministic, and verifiable evidence. The active prototype uses:
+1. Observable telemetry risk-driver summaries.
 2. 4-month empirical velocity curves.
 3. Top-5 nearest historical precedents with verified outcomes.
-4. Rule-based administrative action items derived from Central Vigilance Commission (CVC) and NITI Aayog project guidelines.
+4. Prototype operational suggestions; no official CVC or NITI Aayog authority is claimed without source citations.
 
 **Q9: How do your rule-based recommendations work?**  
 *Answer:* Recommendations are mapped to rigorous operational triggers:

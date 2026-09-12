@@ -1,0 +1,42 @@
+{
+  "model_version": "xgb-forward-t1-v1",
+  "feature_version": "features-v2-forward-t1",
+  "target": "forward_time_risk_escalation",
+  "model_type": "XGBClassifier",
+  "calibration_status": "uncalibrated",
+  "feature_columns": [
+    "log_original_cost",
+    "planned_duration_months",
+    "approval_to_start_months",
+    "project_age_months",
+    "physical_progress_pct",
+    "cumulative_expenditure_cr",
+    "expenditure_pct_of_original",
+    "progress_minus_expenditure_pct",
+    "progress_per_age_month",
+    "progress_velocity_pct_month",
+    "expenditure_velocity_cr_month",
+    "approval_year",
+    "start_year",
+    "is_multi_state",
+    "agency_hist_time_overrun_rate",
+    "sector_hist_time_overrun_rate",
+    "ministry_hist_time_overrun_rate",
+    "agency",
+    "ministry",
+    "sector",
+    "state"
+  ],
+  "training_months": [
+    "2026-04",
+    "2026-05"
+  ],
+  "evaluation_month": "2026-06",
+  "training_cutoff": "2026-06",
+  "python_version": "3.11.9",
+  "numpy_version": "1.26.4",
+  "pandas_version": "2.2.2",
+  "scikit_learn_version": "1.9.1",
+  "xgboost_version": "3.2.0",
+  "generated_at": "2026-09-12T05:56:00.813306+00:00"
+}

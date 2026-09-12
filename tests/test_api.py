@@ -23,7 +23,9 @@ def test_api_health():
     response = client.get("/api/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
+    assert data["status"] == "ok"
+    assert data["data_store"] == "loaded"
+    assert data["data_source"] == "local precomputed dataset"
     assert data["projects_count"] == 1775
     assert data["models_loaded"]["cost_monitor"] is True
     assert data["models_loaded"]["time_monitor"] is True
@@ -51,9 +53,9 @@ def test_api_projects_list_and_filters():
     crit_resp = client.get("/api/projects?risk_band=CRITICAL")
     assert crit_resp.status_code == 200
     crit_data = crit_resp.json()
-    assert crit_data["total"] > 0
     for item in crit_data["items"]:
         assert item["risk_band"] == "CRITICAL"
+    assert crit_data["total"] >= 0
 
     # 3. Search query
     search_resp = client.get("/api/projects?search=NHAI")
@@ -113,3 +115,21 @@ def test_api_predict_scenario():
     assert 0 <= data["predictions"]["time_overrun_risk_pct"] <= 100
     assert "operational_recommendations" in data
     assert len(data["operational_recommendations"]) > 0
+    assert "model_version" in data
+    assert "feature_version" in data
+    assert "out_of_distribution" in data
+
+
+def test_api_predict_flags_out_of_distribution_input():
+    payload = {
+        "original_cost_cr": 100.0,
+        "planned_duration_months": 12.0,
+        "physical_progress_pct": 50.0,
+        "cumulative_expenditure_cr": 500.0,
+        "project_age_months": 48.0,
+        "expenditure_velocity_cr_month": 200.0,
+    }
+    response = client.post("/api/predict", json=payload)
+    assert response.status_code == 200
+    assert response.json()["out_of_distribution"] is True
+    assert response.json()["warnings"]

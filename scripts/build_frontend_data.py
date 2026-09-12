@@ -5,22 +5,44 @@ highly-optimized JSON dataset for the PAIMANA web prototype.
 """
 import json
 from pathlib import Path
+from datetime import datetime, timezone
+import sys
 import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from backend.risk_scoring import calculate_priority_score, determine_risk_band, RISK_SCORING_VERSION
+
+
+def clean_json(value):
+    if isinstance(value, dict):
+        return {key: clean_json(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [clean_json(item) for item in value]
+    if isinstance(value, (np.floating, float)):
+        return float(value) if np.isfinite(value) else None
+    if isinstance(value, (np.integer, int)):
+        return int(value)
+    return value
 
 def build_data():
     print("Loading data files...")
     snap_path = ROOT / "data" / "snapshot_features.csv"
     snap = pd.read_csv(snap_path)
     
-    # Load model results
-    with open(ROOT / "results" / "project_risk_profiles_full.json", encoding="utf-8") as f:
-        full_profiles = {p["project_code"]: p for p in json.load(f)}
-        
-    with open(ROOT / "results" / "risk_profiles.json", encoding="utf-8") as f:
-        july_profiles = {p["project_code"]: p for p in json.load(f)}
+    def load_profile_payload(path):
+        with open(path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if isinstance(payload, dict):
+            return payload.get("projects", []), payload.get("metadata", {})
+        return payload, {}
+
+    # The current risk artifact is authoritative. Legacy full profiles are not
+    # mixed into the active dashboard because their model schema is unknown.
+    july_rows, profile_metadata = load_profile_payload(ROOT / "results" / "risk_profiles.json")
+    july_profiles = {p["project_code"]: p for p in july_rows}
+    full_profiles = {}
         
     hist_comp_file = ROOT / "results" / "historical_comparables.csv"
     top_comps_by_proj = {}
@@ -47,12 +69,12 @@ def build_data():
         time_comparison = json.load(f)
 
     # Focus on July active projects as primary cross-section (1,775 projects)
-    latest_month = "2026-07"
+    latest_month = str(snap["month"].max())
     july_df = snap[snap["month"] == latest_month].copy()
     print(f"Found {len(july_df):,} projects in {latest_month} snapshot")
 
     # Map month ordering for temporal trend analysis
-    months_order = ["2026-04", "2026-05", "2026-06", "2026-07"]
+    months_order = sorted(snap["month"].dropna().astype(str).unique())
     month_display_names = {
         "2026-04": "Apr 2026",
         "2026-05": "May 2026",
@@ -122,14 +144,7 @@ def build_data():
             o_risk = round((c_risk + t_risk) / 2, 1)
 
         # 4-tier risk band
-        if o_risk >= 80.0 or (c_risk >= 90.0 and t_risk >= 90.0):
-            risk_band = "CRITICAL"
-        elif o_risk >= 60.0:
-            risk_band = "HIGH"
-        elif o_risk >= 35.0:
-            risk_band = "MEDIUM"
-        else:
-            risk_band = "LOW"
+        risk_band = "LOW"
 
         # Temporal Monthly Snapshots for this project
         history_records = []
@@ -143,9 +158,6 @@ def build_data():
                 h_exp = float(h_row["cumulative_expenditure_cr"]) if pd.notna(h_row["cumulative_expenditure_cr"]) else 0.0
                 h_rev = float(h_row["revised_cost_cr"]) if pd.notna(h_row["revised_cost_cr"]) else orig_cost
                 
-                # Monthly risk trajectory leading to current July score
-                m_idx = months_order.index(m_code) if m_code in months_order else 3
-                decay_factor = 0.88 + (0.04 * m_idx)
                 history_records.append({
                     "month": m_code,
                     "month_label": month_display_names.get(m_code, m_code),
@@ -154,23 +166,10 @@ def build_data():
                     "revised_cost_cr": round(h_rev, 2),
                     "cost_overrun_pct": round(h_cost_ov, 1),
                     "schedule_slippage_months": round(h_slip, 1),
-                    "cost_risk_score": round(min(c_risk * decay_factor, 99.9), 1),
-                    "time_risk_score": round(min(t_risk * decay_factor, 99.9), 1),
-                    "overall_risk_score": round(min(o_risk * decay_factor, 99.9), 1),
+                    "risk_score_status": "not_scored_from_historical_snapshot",
                 })
                 
-        # Risk trend
-        if len(history_records) >= 2:
-            first_score = history_records[0]["overall_risk_score"]
-            last_score = history_records[-1]["overall_risk_score"]
-            if (last_score - first_score) > 2.0:
-                risk_trend = "INCREASING"
-            elif (first_score - last_score) > 2.0:
-                risk_trend = "DECREASING"
-            else:
-                risk_trend = "STABLE"
-        else:
-            risk_trend = "STABLE"
+        risk_trend = "UNAVAILABLE_WITHOUT_HISTORICAL_SCORING"
 
         # Deterministic Risk Drivers (from SHAP if available + observable telemetry)
         drivers_cost = []
@@ -239,9 +238,10 @@ def build_data():
                 triggers.append(f"Progress stagnation: physical progress remained flat at {last_p:.1f}% while ₹{(last_e - first_e):.1f} Cr was disbursed")
                 recommended_actions.append("Halt progressive disbursements pending joint on-site physical measurement certification by independent engineers.")
 
-        if not triggers:
-            triggers.append("Project progress aligned with approved financial and schedule milestones")
-            recommended_actions.append("Maintain routine monthly telemetry reporting and verify quarterly physical progress milestones.")
+        observed_trigger = bool(triggers)
+        if not observed_trigger:
+            triggers.append("No deterministic execution trigger observed in current telemetry")
+            recommended_actions.append("Review the forward ML risk signal alongside monthly telemetry before escalating intervention.")
 
         # Top-5 Historical Precedents
         top_comps = top_comps_by_proj.get(pcode, [])
@@ -252,7 +252,7 @@ def build_data():
                 "project_code": int(c["comparable_project_code"]) if pd.notna(c.get("comparable_project_code")) else None,
                 "project_name": str(c.get("comparable_project_name", "Historical Infrastructure Precedent")),
                 "agency": str(c.get("comparable_agency", agency)),
-                "similarity_pct": round(float(c.get("similarity_pct", 85.0)), 1),
+                "similarity_score": round(float(c.get("similarity_score", 0.0)), 4),
                 "cost_overrun_pct": round(float(c.get("comparable_cost_overrun_pct", 0.0)), 1),
                 "schedule_slippage_months": round(float(c.get("comparable_schedule_slippage_months", 0.0)), 1),
                 "outcome_note": "Completed within schedule" if float(c.get("comparable_schedule_slippage_months", 0)) <= 0 else f"+{float(c.get('comparable_schedule_slippage_months', 0)):.0f} mo slippage",
@@ -264,7 +264,7 @@ def build_data():
                 "project_code": None,
                 "project_name": fp.get("comparable_project_name"),
                 "agency": fp.get("comparable_agency", agency),
-                "similarity_pct": 82.5,
+                "similarity_score": 0.0,
                 "cost_overrun_pct": round(float(fp.get("comparable_cost_overrun_pct", 0.0)), 1),
                 "schedule_slippage_months": round(float(fp.get("comparable_schedule_slippage_months", 0.0)), 1),
                 "outcome_note": fp.get("comparable_outcome_note", "Historical Precedent"),
@@ -272,14 +272,9 @@ def build_data():
             }
 
         # Attention-Priority Score (composite formula for executive ranking)
-        priority_score = round(
-            (o_risk * 0.4) +
-            (c_risk * 0.2) +
-            (t_risk * 0.2) +
-            min(orig_cost / 1000.0, 10.0) * 1.0 +
-            ((100.0 - min(phys_progress, 100.0)) * 0.1),
-            1
-        )
+        forward_risk = float(july_profiles.get(pcode, {}).get("forward_escalation_risk_pct", 0.0))
+        priority_score = calculate_priority_score(c_risk, t_risk, forward_risk, orig_cost)
+        risk_band = determine_risk_band(priority_score, c_risk, t_risk)
 
         project_obj = {
             "project_code": pcode,
@@ -305,6 +300,7 @@ def build_data():
             "cost_risk_pct": c_risk,
             "time_risk_score": t_risk,
             "time_risk_pct": t_risk,
+            "forward_escalation_risk_pct": forward_risk,
             "overall_risk_score": o_risk,
             "risk_band": risk_band,
             "risk_trend": risk_trend,
@@ -316,7 +312,8 @@ def build_data():
             "triggers": triggers,
             "recommended_actions": recommended_actions,
             "monthly_history": history_records,
-            "last_updated": "July 2026"
+            "last_updated": latest_month,
+            "explanation_status": "No local SHAP values are claimed; drivers are telemetry rules or legacy global importances"
         }
         projects_list.append(project_obj)
 
@@ -324,6 +321,7 @@ def build_data():
         if risk_band in ["CRITICAL", "HIGH", "MEDIUM"]:
             alerts_list.append({
                 "severity": risk_band,
+                "level": risk_band,
                 "project_code": pcode,
                 "project_name": pname,
                 "agency": agency,
@@ -332,7 +330,9 @@ def build_data():
                 "overall_risk_score": o_risk,
                 "priority_score": priority_score,
                 "risk_type": "Cost & Schedule Overrun" if (c_risk > 70 and t_risk > 70) else ("Cost Escalation" if c_risk > 70 else ("Schedule Slippage" if t_risk > 70 else "Monitoring Required")),
+                "type": "Cost & Schedule Overrun" if (c_risk > 70 and t_risk > 70) else ("Cost Escalation" if c_risk > 70 else ("Schedule Slippage" if t_risk > 70 else "Monitoring Required")),
                 "primary_trigger": triggers[0],
+                "trigger_type": "OBSERVED_TRIGGER" if observed_trigger else "PREDICTIVE_SIGNAL",
                 "current_metric": f"Cost: +{cost_overrun:.1f}% | Delay: +{slippage:.1f}mo",
                 "recommended_action": recommended_actions[0],
                 "last_updated": "July 2026"
@@ -542,13 +542,9 @@ def build_data():
         })
     ministries_list.sort(key=lambda x: x["project_count"], reverse=True)
 
-    # Curated Flagship Showcase Projects for SIH Judges (Demo Mode)
-    demo_codes = [619003, 602185, 702637, 705237, 701415, 602096]
-    demo_projects = []
-    for code in demo_codes:
-        match = next((p for p in projects_list if p["project_code"] == code), None)
-        if match:
-            demo_projects.append(match)
+    # Demo projects are selected from the current generated ranking, never by
+    # stale project-code case studies or obsolete risk values.
+    demo_projects = projects_list[: min(6, len(projects_list))]
 
     # Final unified payload
     unified_data = {
@@ -556,8 +552,8 @@ def build_data():
             "title": "PAIMANA — Predictive Infrastructure Monitoring & Early Warning System",
             "subtitle": "Data-driven decision support for monitoring major infrastructure projects",
             "authority": "Ministry of Statistics and Programme Implementation (MoSPI), Government of India",
-            "active_snapshot": "July 2026",
-            "temporal_range": "April 2026 – July 2026",
+            "active_snapshot": latest_month,
+            "temporal_range": f"{months_order[0]} – {months_order[-1]}",
             "total_records_processed": len(snap),
             "total_active_projects": len(projects_list)
         },
@@ -579,19 +575,33 @@ def build_data():
         "data_quality": {
             "records_processed": len(snap),
             "unique_projects": int(snap.project_code.nunique()),
-            "reporting_snapshots": ["April 2026", "May 2026", "June 2026", "July 2026"],
+            "reporting_snapshots": months_order,
             "reporting_coverage_pct": 100.0,
             "data_source_citation": "MoSPI PAIMANA Flash Report (Table 6: All Ongoing Projects ₹150 Cr and Above)",
             "censored_time_labels_handled": True,
             "leakage_safe_temporal_holdout": True,
-            "test_month": "July 2026",
+            "test_month": "2026-06 T+1 target",
+            "model_version": profile_metadata.get("model_version", "xgb-forward-t1-v1"),
+            "feature_version": profile_metadata.get("feature_version", "features-v2-forward-t1"),
             "limitations": [
                 "Modeled on four consecutive monthly snapshots (April–July 2026). Additional historical cycles will further improve long-term horizon forecasting.",
                 "Approval year acts as a significant risk predictor, reflecting both project maturity and legacy clearance delays.",
                 "Censored time labels (projects past target DoC without declared revised DoC) are excluded from training to prevent false on-time assumptions."
             ]
+        },
+        "artifact_metadata": {
+            "dataset_version": "paimana-panel-apr-jul-2026",
+            "model_version": profile_metadata.get("model_version", "xgb-forward-t1-v1"),
+            "feature_version": profile_metadata.get("feature_version", "features-v2-forward-t1"),
+            "risk_scoring_version": RISK_SCORING_VERSION,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "training_cutoff": "2026-06",
+            "evaluation_period": "2026-06 T+1 target",
+            "data_mode": "precomputed analytical dashboard with FastAPI scenario inference",
         }
     }
+
+    unified_data = clean_json(unified_data)
 
     # Export to both frontend/src and frontend/public
     for target in [

@@ -21,8 +21,8 @@ export const MethodologyView = ({ models, dataQuality }) => {
     { title: "3. Feature Engineering", desc: "Planned duration calculation (Target DoC - Start Date), project age, groundwork lag, and multi-state flags." },
     { title: "4. Temporal Trend Modeling", desc: "Month-over-month velocity tracking for physical progress and cumulative expenditure without lookahead leakage." },
     { title: "5. Leakage-Safe Group Track Record", desc: "Historical agency/sector performance derived strictly from snapshots prior to current prediction month." },
-    { title: "6. ML Risk Quantification", desc: "XGBoost classifier pipelines trained on prior snapshots and evaluated against hold-out July 2026 test month." },
-    { title: "7. Explainable SHAP Drivers", desc: "Decomposition of risk scores into deterministic feature contributions for full institutional explainability." },
+    { title: "6. ML Risk Quantification", desc: "Uncalibrated XGBoost forward T+1 classifiers trained on earlier snapshots and evaluated on the latest month with a known target." },
+    { title: "7. Evidence and Limitations", desc: "Global model feature importance and observable telemetry rules are shown; local SHAP values are not claimed in this prototype." },
     { title: "8. Early Warning & Decision Support", desc: "Multi-tiered anomaly detection triggering rule-based, actionable administrative recommendations." },
   ];
 
@@ -98,7 +98,7 @@ export const MethodologyView = ({ models, dataQuality }) => {
             </span>
             <h3 className="text-xs font-bold text-slate-900 mt-1">ML Risk Probabilities</h3>
             <p className="text-[11px] text-slate-600 leading-relaxed">
-              Leakage-safe model outputs: Cost Overrun Risk Probability (%), Schedule Slippage Probability (%), Composite Priority Score, and SHAP Local Risk Attributions.
+              Forward T+1 risk scores, Composite Priority Score, and observable telemetry explanations. Scores are uncalibrated model outputs, not official probabilities.
             </p>
           </div>
         </div>
@@ -122,31 +122,31 @@ export const MethodologyView = ({ models, dataQuality }) => {
             <div className="p-2 bg-slate-50 border border-slate-100 rounded">
               <span className="text-[10px] text-slate-400 block font-semibold">ROC-AUC</span>
               <span className="text-sm font-bold font-mono text-slate-900">
-                {costTest.roc_auc ? (costTest.roc_auc * 100).toFixed(1) : '95.2'}%
+                {costTest.roc_auc != null ? `${(costTest.roc_auc * 100).toFixed(1)}%` : 'Unavailable'}
               </span>
             </div>
             <div className="p-2 bg-slate-50 border border-slate-100 rounded">
               <span className="text-[10px] text-slate-400 block font-semibold">PR-AUC</span>
               <span className="text-sm font-bold font-mono text-slate-900">
-                {costTest.pr_auc ? (costTest.pr_auc * 100).toFixed(1) : '89.5'}%
+                {costTest.pr_auc != null ? `${(costTest.pr_auc * 100).toFixed(1)}%` : 'Unavailable'}
               </span>
             </div>
             <div className="p-2 bg-slate-50 border border-slate-100 rounded">
               <span className="text-[10px] text-slate-400 block font-semibold">Precision</span>
               <span className="text-sm font-bold font-mono text-slate-900">
-                {costTest.precision ? (costTest.precision * 100).toFixed(1) : '92.9'}%
+                {costTest.precision != null ? `${(costTest.precision * 100).toFixed(1)}%` : 'Unavailable'}
               </span>
             </div>
             <div className="p-2 bg-slate-50 border border-slate-100 rounded">
               <span className="text-[10px] text-slate-400 block font-semibold">Brier Score</span>
               <span className="text-sm font-bold font-mono text-emerald-600">
-                {costTest.brier ? costTest.brier.toFixed(3) : '0.079'}
+                {costTest.brier_score != null ? costTest.brier_score.toFixed(3) : 'Unavailable'}
               </span>
             </div>
           </div>
 
           <div className="text-xs text-slate-600 space-y-2 pt-2 border-t border-slate-100 text-[11px]">
-            <div><strong>Validation Protocol:</strong> Held out July 2026 test snapshot (n={costTest.n || 1775}); trained strictly on April, May, June snapshots.</div>
+            <div><strong>Validation Protocol:</strong> Chronological T+1 holdout on the latest month with known targets (n={costTest.sample_size || 'Unavailable'}); July is scored only as a current demonstration snapshot.</div>
             <div><strong>Features Used:</strong> 17 quantitative telemetry features + 4 categorical embeddings (agency, ministry, sector, state). Imputed median, standardized.</div>
           </div>
         </div>
@@ -167,31 +167,31 @@ export const MethodologyView = ({ models, dataQuality }) => {
             <div className="p-2 bg-slate-50 border border-slate-100 rounded">
               <span className="text-[10px] text-slate-400 block font-semibold">ROC-AUC</span>
               <span className="text-sm font-bold font-mono text-slate-900">
-                {timeTest.roc_auc ? (timeTest.roc_auc * 100).toFixed(1) : '98.7'}%
+                {timeTest.roc_auc != null ? `${(timeTest.roc_auc * 100).toFixed(1)}%` : 'Unavailable'}
               </span>
             </div>
             <div className="p-2 bg-slate-50 border border-slate-100 rounded">
               <span className="text-[10px] text-slate-400 block font-semibold">PR-AUC</span>
               <span className="text-sm font-bold font-mono text-slate-900">
-                {timeTest.pr_auc ? (timeTest.pr_auc * 100).toFixed(1) : '99.3'}%
+                {timeTest.pr_auc != null ? `${(timeTest.pr_auc * 100).toFixed(1)}%` : 'Unavailable'}
               </span>
             </div>
             <div className="p-2 bg-slate-50 border border-slate-100 rounded">
               <span className="text-[10px] text-slate-400 block font-semibold">Recall</span>
               <span className="text-sm font-bold font-mono text-slate-900">
-                {timeTest.recall ? (timeTest.recall * 100).toFixed(1) : '95.2'}%
+                {timeTest.recall != null ? `${(timeTest.recall * 100).toFixed(1)}%` : 'Unavailable'}
               </span>
             </div>
             <div className="p-2 bg-slate-50 border border-slate-100 rounded">
               <span className="text-[10px] text-slate-400 block font-semibold">Brier Score</span>
               <span className="text-sm font-bold font-mono text-emerald-600">
-                {timeTest.brier ? timeTest.brier.toFixed(3) : '0.040'}
+                {timeTest.brier_score != null ? timeTest.brier_score.toFixed(3) : 'Unavailable'}
               </span>
             </div>
           </div>
 
           <div className="text-xs text-slate-600 space-y-2 pt-2 border-t border-slate-100 text-[11px]">
-            <div><strong>Validation Protocol:</strong> Held out July 2026 test snapshot (n={timeTest.n || 1725}). Censored time labels explicitly handled.</div>
+            <div><strong>Validation Protocol:</strong> Chronological T+1 holdout on the latest month with known targets (n={timeTest.sample_size || 'Unavailable'}). Unknown/censored future labels are excluded.</div>
             <div><strong>Features Used:</strong> 17 quantitative telemetry features including agency historical slippage rates and progress velocities.</div>
           </div>
         </div>
@@ -209,7 +209,7 @@ export const MethodologyView = ({ models, dataQuality }) => {
             <strong>1. Snapshot Availability:</strong> The current prototype is validated across four consecutive monthly cycles (April to July 2026, comprising 7,590 project-month records). While sufficient to demonstrate month-over-month telemetry and leakage-safe validation, additional multi-year historical snapshots will strengthen long-horizon macroeconomic forecasting.
           </div>
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-            <strong>2. Approval Year Artifact:</strong> Approval year is identified as a top SHAP predictor in both models. This partly reflects project maturity and gestation—older sanctioned projects have had longer durations to accumulate administrative amendments—rather than pure causal risk.
+            <strong>2. Approval Year Artifact:</strong> Approval year is included as a model feature. Its association may reflect project maturity and gestation rather than causal risk; local SHAP attribution is not enabled.
           </div>
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
             <strong>3. Censored Time Labels:</strong> Projects whose original target date has passed but currently lack an officially declared revised date are treated as censored and excluded from time training to avoid misclassifying them as on-schedule.

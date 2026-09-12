@@ -1,6 +1,6 @@
 # PAIMANA SIH 26103 — Corrected Final Prototype
 
-This package is the corrected version of the audited prototype. It keeps the core idea — official PAIMANA data → monitoring features → explainable risk — while fixing the main methodological problems found in the original implementation.
+This package is the audited prototype. It keeps the core idea — official PAIMANA data → monitoring features → versioned decision support — while making the forward-target limitations explicit.
 
 ## What was fixed
 
@@ -11,6 +11,7 @@ This package is the corrected version of the audited prototype. It keeps the cor
 5. **Monitoring features added:** project age, expenditure ratio, progress/expenditure divergence, month-over-month progress velocity and expenditure velocity.
 6. **Historical comparables fixed:** comparable projects must come from an earlier snapshot.
 7. **Portable paths:** scripts use paths relative to the project instead of `/home/claude` or `/mnt/user-data`.
+8. **Honest evidence:** production scores are uncalibrated T+1 XGBoost outputs; SHAP is not implemented; four snapshots do not support long-horizon claims.
 
 ## Run
 

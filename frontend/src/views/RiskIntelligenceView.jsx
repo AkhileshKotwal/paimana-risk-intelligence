@@ -81,16 +81,20 @@ export const RiskIntelligenceView = ({ projects = [], onSelectProject, models })
     return { q1, q2, q3, q4 };
   }, [projects]);
 
-  // Top SHAP feature drivers from model
-  const topShapDrivers = [
-    { feature: "Agency Historical Cost Overrun %", impact: 2.48, category: "Agency Track Record" },
-    { feature: "Project Planned Duration (Months)", impact: 2.15, category: "Sanctioned Scope" },
-    { feature: "Project Age / Groundwork Lag", impact: 1.82, category: "Timeline Execution" },
-    { feature: "Approval Year (Project Vintage)", impact: 1.63, category: "Policy & Approval" },
-    { feature: "Progress vs Expenditure Divergence", impact: 1.45, category: "Financial Telemetry" },
-    { feature: "Monthly Progress Velocity", impact: 1.28, category: "Observable Trend" },
-    { feature: "Sanctioned Cost Scale (Log Cost)", impact: 1.05, category: "Financial Scale" },
-  ];
+  const telemetryDriverSummary = useMemo(() => [
+    {
+      feature: 'Progress / expenditure gap',
+      impact: projects.filter((p) => (p.physical_progress_pct ?? 0) < ((p.cumulative_expenditure_cr ?? 0) / Math.max(p.original_cost_cr ?? 1, 1)) * 100 - 20).length,
+    },
+    {
+      feature: 'Reported schedule slippage',
+      impact: projects.filter((p) => (p.schedule_slippage_months ?? 0) > 12).length,
+    },
+    {
+      feature: 'Stalled progress telemetry',
+      impact: projects.filter((p) => Math.abs(p.progress_velocity_pct_month ?? 0) < 0.2 && (p.expenditure_velocity_cr_month ?? 0) > 5).length,
+    },
+  ], [projects]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -130,34 +134,34 @@ export const RiskIntelligenceView = ({ projects = [], onSelectProject, models })
               </div>
             </div>
             <span className="text-xs font-mono font-bold text-amber-600">
-              AUC: {models?.cost_monitor?.test?.roc_auc ? (models.cost_monitor.test.roc_auc * 100).toFixed(1) : '95.2'}%
+              AUC: {models?.cost_monitor?.test?.roc_auc != null ? (models.cost_monitor.test.roc_auc * 100).toFixed(1) : 'Unavailable'}
             </span>
           </div>
 
           <div className="grid grid-cols-3 gap-3 mt-4 text-center">
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
               <div className="text-[10px] text-slate-500 uppercase font-semibold">Positive Rate</div>
-              <div className="text-base font-bold font-mono text-slate-900 mt-0.5">25.6%</div>
+              <div className="text-base font-bold font-mono text-slate-900 mt-0.5">{models?.cost_monitor?.test?.positive_rate != null ? (models.cost_monitor.test.positive_rate * 100).toFixed(1) : 'Unavailable'}{models?.cost_monitor?.test?.positive_rate != null ? '%' : ''}</div>
               <div className="text-[10px] text-slate-400">of active projects</div>
             </div>
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
               <div className="text-[10px] text-slate-500 uppercase font-semibold">Test Precision</div>
               <div className="text-base font-bold font-mono text-slate-900 mt-0.5">
-                {models?.cost_monitor?.test?.precision ? (models.cost_monitor.test.precision * 100).toFixed(1) : '92.9'}%
+                {models?.cost_monitor?.test?.precision != null ? `${(models.cost_monitor.test.precision * 100).toFixed(1)}%` : 'Unavailable'}
               </div>
               <div className="text-[10px] text-slate-400">low false alarms</div>
             </div>
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
               <div className="text-[10px] text-slate-500 uppercase font-semibold">Brier Score</div>
               <div className="text-base font-bold font-mono text-emerald-600 mt-0.5">
-                {models?.cost_monitor?.test?.brier ? models.cost_monitor.test.brier.toFixed(3) : '0.079'}
+                {models?.cost_monitor?.test?.brier_score != null ? models.cost_monitor.test.brier_score.toFixed(3) : 'Unavailable'}
               </div>
-              <div className="text-[10px] text-slate-400">well-calibrated</div>
+              <div className="text-[10px] text-slate-400">uncalibrated score</div>
             </div>
           </div>
 
           <div className="mt-4 text-xs text-slate-600 bg-amber-50/70 border border-amber-100 p-3 rounded-lg leading-relaxed">
-            <strong>Key Finding:</strong> Agency historical cost overrun track record provides the strongest predictive power (+2.48 SHAP impact), a feature not currently captured in standard CUF monitoring forms.
+            <strong>Evidence boundary:</strong> This view uses forward, uncalibrated model scores and observable telemetry. Local SHAP impacts are not implemented in this prototype.
           </div>
         </div>
 
@@ -174,27 +178,27 @@ export const RiskIntelligenceView = ({ projects = [], onSelectProject, models })
               </div>
             </div>
             <span className="text-xs font-mono font-bold text-orange-600">
-              AUC: {models?.time_monitor?.test?.roc_auc ? (models.time_monitor.test.roc_auc * 100).toFixed(1) : '98.7'}%
+              AUC: {models?.time_monitor?.test?.roc_auc != null ? (models.time_monitor.test.roc_auc * 100).toFixed(1) : 'Unavailable'}
             </span>
           </div>
 
           <div className="grid grid-cols-3 gap-3 mt-4 text-center">
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
               <div className="text-[10px] text-slate-500 uppercase font-semibold">Positive Rate</div>
-              <div className="text-base font-bold font-mono text-slate-900 mt-0.5">64.2%</div>
+              <div className="text-base font-bold font-mono text-slate-900 mt-0.5">{models?.time_monitor?.test?.positive_rate != null ? (models.time_monitor.test.positive_rate * 100).toFixed(1) : 'Unavailable'}{models?.time_monitor?.test?.positive_rate != null ? '%' : ''}</div>
               <div className="text-[10px] text-slate-400">exceed target DoC</div>
             </div>
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
               <div className="text-[10px] text-slate-500 uppercase font-semibold">Test Recall</div>
               <div className="text-base font-bold font-mono text-slate-900 mt-0.5">
-                {models?.time_monitor?.test?.recall ? (models.time_monitor.test.recall * 100).toFixed(1) : '95.2'}%
+                {models?.time_monitor?.test?.recall != null ? `${(models.time_monitor.test.recall * 100).toFixed(1)}%` : 'Unavailable'}
               </div>
               <div className="text-[10px] text-slate-400">captures 95% delays</div>
             </div>
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
               <div className="text-[10px] text-slate-500 uppercase font-semibold">Test F1-Score</div>
               <div className="text-base font-bold font-mono text-emerald-600 mt-0.5">
-                {models?.time_monitor?.test?.f1 ? (models.time_monitor.test.f1 * 100).toFixed(1) : '96.0'}%
+                {models?.time_monitor?.test?.f1 != null ? `${(models.time_monitor.test.f1 * 100).toFixed(1)}%` : 'Unavailable'}
               </div>
               <div className="text-[10px] text-slate-400">robust balance</div>
             </div>
@@ -372,12 +376,12 @@ export const RiskIntelligenceView = ({ projects = [], onSelectProject, models })
         </div>
       </div>
 
-      {/* SHAP Feature Importance Section */}
+      {/* Observable telemetry driver summary */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Explainable ML: Top Risk Drivers Across Portfolio</h2>
-            <p className="text-xs text-slate-500">Mean absolute SHAP value impact across all 1,775 validated project risk evaluations</p>
+            <h2 className="text-base font-bold text-slate-900">Observed Telemetry Risk Drivers</h2>
+            <p className="text-xs text-slate-500">Counts of current projects matching observable execution conditions. Local SHAP explanations are not enabled.</p>
           </div>
           <Info className="w-4 h-4 text-slate-400" />
         </div>
@@ -385,10 +389,10 @@ export const RiskIntelligenceView = ({ projects = [], onSelectProject, models })
         <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topShapDrivers} layout="vertical" margin={{ top: 5, right: 30, left: 140, bottom: 5 }}>
+              <BarChart data={telemetryDriverSummary} layout="vertical" margin={{ top: 5, right: 30, left: 140, bottom: 5 }}>
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="feature" type="category" tick={{ fontSize: 11 }} width={140} />
-                <Tooltip formatter={(val) => [`+${val} Mean SHAP Impact`, 'Relative Risk Contribution']} />
+                <Tooltip formatter={(val) => [`${val} projects`, 'Observed matches']} />
                 <Bar dataKey="impact" fill="#3B82F6" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -396,16 +400,16 @@ export const RiskIntelligenceView = ({ projects = [], onSelectProject, models })
 
           <div className="space-y-3 text-xs text-slate-600">
             <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg">
-              <strong className="text-blue-900 block mb-1">1. Agency Historical Track Record is #1 Predictor</strong>
-              Agencies with frequent past delays or cost overruns are 3.8x more likely to experience slippage on newly approved corridors, independent of initial feasibility estimates.
+              <strong className="text-blue-900 block mb-1">1. Progress / expenditure divergence</strong>
+              Current telemetry highlights projects where reported expenditure materially exceeds physical progress.
             </div>
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-              <strong className="text-slate-900 block mb-1">2. Approval-to-Groundwork Lag Drives Schedule Slippage</strong>
-              Projects with high gestation before first tender issuance carry structural right-of-way bottlenecks that compound exponentially over the project lifetime.
+              <strong className="text-slate-900 block mb-1">2. Reported schedule slippage</strong>
+              Observed delay is shown separately from the forward ML risk signal.
             </div>
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-              <strong className="text-slate-900 block mb-1">3. Progress vs Expenditure Divergence Signals Milestone Inflation</strong>
-              When cumulative expenditure exceeds physical progress by over 20%, project risk surges, requiring field verification audits.
+              <strong className="text-slate-900 block mb-1">3. Stalled progress telemetry</strong>
+              Flat progress alongside rising expenditure is an observed execution trigger for review.
             </div>
           </div>
         </div>

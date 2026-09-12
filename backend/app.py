@@ -13,6 +13,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from backend.risk_scoring import calculate_priority_score, determine_risk_band, RISK_SCORING_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,6 +26,8 @@ DATA_CACHE: Dict[str, Any] = {
     "models": {},
     "evaluation": {},
     "comparables_df": None
+    ,"feature_reference": None
+    ,"model_metadata": {}
 }
 
 
@@ -66,6 +69,10 @@ def load_data_and_models():
             DATA_CACHE["evaluation"] = json.load(f)
             print("[API Startup] Loaded model evaluation report.")
 
+    feature_path = ROOT / "data" / "snapshot_features.csv"
+    if feature_path.exists():
+        DATA_CACHE["feature_reference"] = pd.read_csv(feature_path)
+
     # 3. Load production ML pipelines
     cost_model_path = ROOT / "backend" / "models" / "cost_monitor.joblib"
     time_model_path = ROOT / "backend" / "models" / "time_monitor.joblib"
@@ -76,6 +83,9 @@ def load_data_and_models():
             print("[API Startup] Loaded cost overrun model pipeline.")
         except Exception as e:
             print(f"[API Startup] Error loading cost model: {e}")
+    cost_meta = cost_model_path.with_suffix(cost_model_path.suffix + ".meta.json")
+    if cost_meta.exists():
+        DATA_CACHE["model_metadata"]["cost"] = json.loads(cost_meta.read_text(encoding="utf-8"))
 
     if time_model_path.exists():
         try:
@@ -83,6 +93,9 @@ def load_data_and_models():
             print("[API Startup] Loaded time overrun model pipeline.")
         except Exception as e:
             print(f"[API Startup] Error loading time model: {e}")
+    time_meta = time_model_path.with_suffix(time_model_path.suffix + ".meta.json")
+    if time_meta.exists():
+        DATA_CACHE["model_metadata"]["time"] = json.loads(time_meta.read_text(encoding="utf-8"))
 
     # 4. Load historical precedents
     comp_path = ROOT / "results" / "historical_comparables.csv"
@@ -111,10 +124,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -123,7 +136,7 @@ class PredictionInput(BaseModel):
     planned_duration_months: float = Field(..., gt=0, description="Planned project duration in months")
     physical_progress_pct: float = Field(..., ge=0, le=100, description="Current physical progress (%)")
     cumulative_expenditure_cr: float = Field(..., ge=0, description="Cumulative expenditure to date in ₹ Crores")
-    project_age_months: float = Field(..., ge=0, description="Elapsed months since date of approval")
+    project_age_months: float = Field(..., ge=0, description="Elapsed months since physical work start")
     approval_to_start_months: float = Field(default=6.0, ge=0, description="Months elapsed between sanction and physical work commencement")
     progress_velocity_pct_month: float = Field(default=1.5, description="Physical progress rate (% per month)")
     expenditure_velocity_cr_month: float = Field(default=10.0, description="Expenditure rate (₹ Cr per month)")
@@ -132,6 +145,9 @@ class PredictionInput(BaseModel):
     agency: str = Field(default="NHAI", description="Executing agency")
     state: str = Field(default="Multi-State", description="Project location state")
     is_multi_state: int = Field(default=0, ge=0, le=1)
+    reporting_month: str = Field(default="2026-07", pattern=r"^\d{4}-\d{2}$")
+    approval_year: Optional[int] = Field(default=None, ge=1900, le=2100)
+    start_year: Optional[int] = Field(default=None, ge=1900, le=2100)
 
 
 @app.get("/")
@@ -141,7 +157,7 @@ def api_index():
         "description": "Government of India Institutional Infrastructure Monitoring & Decision Support Platform",
         "version": "2.0.0",
         "source": "Ministry of Statistics and Programme Implementation (MoSPI)",
-        "monitoring_cycle": "July 2026 (1,775 active projects, ₹150 Cr+ threshold)",
+        "monitoring_cycle": f"{DATA_CACHE.get('portfolio', {}).get('snapshot_month', 'active')} ({len(DATA_CACHE['projects'])} active projects, ₹150 Cr+ threshold)",
         "docs": "/docs",
         "endpoints": [
             "/api/health",
@@ -158,11 +174,16 @@ def api_index():
 @app.get("/api/health")
 def get_health():
     return {
-        "status": "healthy",
-        "database": "online",
-        "active_snapshot": "July 2026",
+        "status": "ok",
+        "data_store": "loaded" if DATA_CACHE["projects"] else "not_loaded",
+        "data_source": "local precomputed dataset",
+        "active_snapshot": DATA_CACHE.get("portfolio", {}).get("snapshot_month", "unknown"),
         "projects_count": len(DATA_CACHE["projects"]),
         "alerts_count": len(DATA_CACHE["alerts"]),
+        "models": {
+            "cost_monitor": "cost" in DATA_CACHE["models"],
+            "time_monitor": "time" in DATA_CACHE["models"]
+        },
         "models_loaded": {
             "cost_monitor": "cost" in DATA_CACHE["models"],
             "time_monitor": "time" in DATA_CACHE["models"]
@@ -252,7 +273,7 @@ def get_project_detail(project_code: str):
     comparables = []
     cdf = DATA_CACHE.get("comparables_df")
     if cdf is not None:
-        matches = cdf[cdf["project_code"].astype(str) == str(project_code)].sort_values("similarity_pct", ascending=False)
+        matches = cdf[cdf["project_code"].astype(str) == str(project_code)].sort_values("similarity_score", ascending=False)
         if not matches.empty:
             comparables = matches.head(5).to_dict(orient="records")
 
@@ -273,9 +294,9 @@ def get_alerts(
 ):
     alerts = DATA_CACHE["alerts"]
     if level and level != "All":
-        alerts = [a for a in alerts if a.get("level") == level]
+        alerts = [a for a in alerts if a.get("level", a.get("severity")) == level]
     if type and type != "All":
-        alerts = [a for a in alerts if a.get("type") == type]
+        alerts = [a for a in alerts if a.get("type", a.get("risk_type")) == type]
     return {
         "total": len(alerts),
         "alerts": alerts[:limit]
@@ -302,15 +323,53 @@ def predict_scenario_risk(payload: PredictionInput):
     if not cost_model or not time_model:
         raise HTTPException(status_code=503, detail="Trained production models are not loaded in memory.")
 
-    # Calculate engineered features
-    log_cost = float(np.log10(max(payload.original_cost_cr, 1.0)))
+    warnings = []
+    reference = DATA_CACHE.get("feature_reference")
+    known_categories = {}
+    if reference is not None:
+        for column in ("agency", "ministry", "sector", "state"):
+            known_categories[column] = set(reference[column].dropna().astype(str).unique())
+            if str(getattr(payload, column)) not in known_categories[column]:
+                warnings.append(f"Unknown {column}: category is outside the training vocabulary")
+
+    if payload.cumulative_expenditure_cr > payload.original_cost_cr * 2:
+        warnings.append("Cumulative expenditure is more than twice the original cost")
+    if payload.project_age_months > payload.planned_duration_months * 3:
+        warnings.append("Project age is more than three times planned duration")
+    if payload.expenditure_velocity_cr_month > payload.original_cost_cr:
+        warnings.append("Monthly expenditure velocity exceeds original sanctioned cost")
+    if payload.progress_velocity_pct_month < -20 or payload.progress_velocity_pct_month > 100:
+        warnings.append("Progress velocity is outside a plausible monthly range")
+
+    # Calculate engineered features using the exact training transform.
+    log_cost = float(np.log1p(payload.original_cost_cr))
     exp_pct = (payload.cumulative_expenditure_cr / max(payload.original_cost_cr, 1.0)) * 100.0
     progress_gap = payload.physical_progress_pct - exp_pct
     prog_per_month = payload.physical_progress_pct / max(payload.project_age_months, 1.0)
-    
-    current_year = 2026
-    start_year = current_year - int(payload.project_age_months // 12)
-    approval_year = start_year - int(payload.approval_to_start_months // 12)
+
+    reporting_date = pd.Timestamp(f"{payload.reporting_month}-01")
+    current_year = int(reporting_date.year)
+    start_year = payload.start_year or (current_year - int(payload.project_age_months // 12))
+    approval_year = payload.approval_year or (start_year - int(payload.approval_to_start_months // 12))
+
+    history = {key: 0.0 for key in (
+        "agency_hist_cost_overrun_pct", "sector_hist_cost_overrun_pct", "ministry_hist_cost_overrun_pct",
+        "agency_hist_time_overrun_rate", "sector_hist_time_overrun_rate", "ministry_hist_time_overrun_rate"
+    )}
+    if reference is not None:
+        reference = reference.copy()
+        reference["month_dt"] = pd.to_datetime(reference["month"].astype(str) + "-01", errors="coerce")
+        prior = reference[reference["month_dt"] < reporting_date]
+        group_map = {
+            "agency": (payload.agency, "agency_hist_cost_overrun_pct", "agency_hist_time_overrun_rate"),
+            "sector": (payload.sector, "sector_hist_cost_overrun_pct", "sector_hist_time_overrun_rate"),
+            "ministry": (payload.ministry, "ministry_hist_cost_overrun_pct", "ministry_hist_time_overrun_rate"),
+        }
+        for column, (value, cost_key, time_key) in group_map.items():
+            rows = prior[prior[column].astype(str) == str(value)]
+            if not rows.empty:
+                history[cost_key] = float(pd.to_numeric(rows["cost_overrun_pct"], errors="coerce").mean())
+                history[time_key] = float(pd.to_numeric(rows["is_time_overrun"], errors="coerce").mean())
 
     # Feature row matching training schema
     feature_dict = {
@@ -328,12 +387,7 @@ def predict_scenario_risk(payload: PredictionInput):
         "approval_year": approval_year,
         "start_year": start_year,
         "is_multi_state": payload.is_multi_state,
-        "agency_hist_cost_overrun_pct": 25.0,
-        "sector_hist_cost_overrun_pct": 24.0,
-        "ministry_hist_cost_overrun_pct": 24.5,
-        "agency_hist_time_overrun_rate": 0.65,
-        "sector_hist_time_overrun_rate": 0.64,
-        "ministry_hist_time_overrun_rate": 0.64,
+        **history,
         "agency": payload.agency,
         "ministry": payload.ministry,
         "sector": payload.sector,
@@ -348,19 +402,8 @@ def predict_scenario_risk(payload: PredictionInput):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Inference execution failed: {str(e)}")
 
-    # Priority score
-    scale_factor = min(100.0, (log_cost / np.log10(50000.0)) * 100.0)
-    priority_score = round((0.40 * cost_prob) + (0.35 * time_prob) + (0.25 * scale_factor), 1)
-
-    # Risk band
-    if priority_score >= 70.0 or (cost_prob >= 75.0 and time_prob >= 75.0):
-        risk_band = "CRITICAL"
-    elif priority_score >= 50.0 or cost_prob >= 65.0 or time_prob >= 65.0:
-        risk_band = "HIGH"
-    elif priority_score >= 30.0:
-        risk_band = "MEDIUM"
-    else:
-        risk_band = "LOW"
+    priority_score = calculate_priority_score(cost_prob, time_prob, 0.0, payload.original_cost_cr)
+    risk_band = determine_risk_band(priority_score, cost_prob, time_prob)
 
     # Actionable operational guidance
     recommendations = []
@@ -369,9 +412,9 @@ def predict_scenario_risk(payload: PredictionInput):
     if payload.progress_velocity_pct_month < 0.5 and payload.expenditure_velocity_cr_month > 10.0:
         recommendations.append("High capital burn with stagnant progress: Review contractor billings against milestone completion.")
     if time_prob > 70.0:
-        recommendations.append("High schedule slippage probability: Fast-track statutory clearances and utility shifting.")
+        recommendations.append("High schedule-risk score: Fast-track statutory clearances and utility shifting.")
     if cost_prob > 70.0:
-        recommendations.append("Elevated cost escalation probability: Freeze scope variations and index price escalation formulas.")
+        recommendations.append("Elevated cost-risk score: Freeze scope variations and index price escalation formulas.")
     if not recommendations:
         recommendations.append("Project trajectory within nominal tolerances. Continue bi-weekly monitoring.")
 
@@ -379,6 +422,13 @@ def predict_scenario_risk(payload: PredictionInput):
 
     return {
         "inputs": inputs_dict,
+        "out_of_distribution": bool(warnings),
+        "warnings": warnings,
+        "model_version": DATA_CACHE["model_metadata"].get("cost", {}).get("model_version", "unknown"),
+        "feature_version": DATA_CACHE["model_metadata"].get("cost", {}).get("feature_version", "unknown"),
+        "training_cutoff": DATA_CACHE["model_metadata"].get("cost", {}).get("training_cutoff", "unknown"),
+        "prediction_timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
+        "risk_scoring_version": RISK_SCORING_VERSION,
         "predictions": {
             "cost_overrun_risk_pct": round(cost_prob, 1),
             "time_overrun_risk_pct": round(time_prob, 1),

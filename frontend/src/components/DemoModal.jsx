@@ -18,6 +18,7 @@ import { formatCr, formatPct } from '../services/riskService';
 
 export const DemoModal = ({ isOpen, onClose, onSelectProject, onSelectTab, demoProjects = [] }) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const showcase = demoProjects[0];
 
   if (!isOpen) return null;
 
@@ -33,14 +34,14 @@ export const DemoModal = ({ isOpen, onClose, onSelectProject, onSelectTab, demoP
           </p>
           <div className="grid grid-cols-2 gap-2 my-2">
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-center">
-              <span className="text-[10px] text-red-600 uppercase font-semibold block">Schedule Slippage Rate</span>
-              <span className="text-xl font-bold font-mono text-red-700">64.2%</span>
-              <span className="text-[10px] text-slate-500">of ongoing projects</span>
+              <span className="text-[10px] text-red-600 uppercase font-semibold block">Observed schedule telemetry</span>
+              <span className="text-xl font-bold font-mono text-red-700">See dashboard</span>
+              <span className="text-[10px] text-slate-500">not a calibrated probability</span>
             </div>
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-center">
               <span className="text-[10px] text-amber-600 uppercase font-semibold block">Cost Escalation Outlay</span>
-              <span className="text-xl font-bold font-mono text-amber-700">+₹4.8 Lakh Cr</span>
-              <span className="text-[10px] text-slate-500">cumulative overrun</span>
+              <span className="text-xl font-bold font-mono text-amber-700">See dashboard</span>
+              <span className="text-[10px] text-slate-500">observed portfolio telemetry</span>
             </div>
           </div>
           <p>
@@ -75,25 +76,25 @@ export const DemoModal = ({ isOpen, onClose, onSelectProject, onSelectTab, demoP
     },
     {
       step: 3,
-      title: "Showcase Case Study: Solan-Kaithlighat NH-5 (#619003)",
-      badge: "Flagship High-Risk Project",
+      title: `Showcase Current Priority Project${showcase ? `: ${showcase.project_name}` : ''}`,
+      badge: "Current Dataset Ranking",
       content: (
         <div className="space-y-3 text-xs text-slate-700 leading-relaxed">
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-            <div className="font-bold text-red-900 text-xs">Solan - Kaithlighat Section of NH-22 (Now NH-5)</div>
-            <div className="text-[11px] text-red-700 mt-0.5">Agency: NHAI · State: Himachal Pradesh · Cost: ₹1,519.5 Cr</div>
+            <div className="font-bold text-red-900 text-xs">{showcase?.project_name || 'No current showcase project available'}</div>
+            <div className="text-[11px] text-red-700 mt-0.5">ID: #{showcase?.project_code || '—'} · Agency: {showcase?.agency || '—'} · Cost: {showcase ? formatCr(showcase.original_cost_cr) : '—'}</div>
           </div>
           <p>
-            <strong>The Anomaly Discovered:</strong> Across the 4 monthly cycles (April to July 2026), physical execution remained frozen at <strong>90.11%</strong>, while cumulative expenditure climbed from ₹652.0 Cr to ₹1,347.8 Cr (a 106% jump in cash disbursement with 0% certified physical progress).
+            <strong>Current observed telemetry:</strong> Physical progress is <strong>{showcase?.physical_progress_pct?.toFixed(1) || '—'}%</strong>, cumulative expenditure is <strong>{showcase ? formatCr(showcase.cumulative_expenditure_cr) : '—'}</strong>, and reported cost escalation is <strong>{showcase ? formatPct(showcase.cost_overrun_pct) : '—'}</strong>.
           </p>
           <p>
-            <strong>Schedule Slippage:</strong> Delayed by <strong>+66.0 Months</strong> (5.5 years overdue). The predictive engine flagged this at <strong>99.5% overall risk</strong> with deterministic recommendations for an immediate joint on-site physical measurement audit.
+            <strong>Forward ML signal:</strong> Cost score <strong>{showcase ? `${showcase.cost_risk_score.toFixed(1)}%` : '—'}</strong>, schedule score <strong>{showcase ? `${showcase.time_risk_score.toFixed(1)}%` : '—'}</strong>, forward escalation score <strong>{showcase ? `${showcase.forward_escalation_risk_pct.toFixed(1)}%` : '—'}</strong>, and priority band <strong>{showcase?.risk_band || '—'}</strong>. Scores are uncalibrated prioritization signals.
           </p>
         </div>
       ),
-      actionText: "Open Solan-Kaithlighat Risk Profile",
+      actionText: "Open Current Priority Profile",
       onAction: () => {
-        const p = demoProjects.find((x) => x.project_code === 619003);
+        const p = showcase;
         if (p) {
           onSelectProject(p);
           onClose();
@@ -177,9 +178,9 @@ export const DemoModal = ({ isOpen, onClose, onSelectProject, onSelectTab, demoP
           </p>
           <ul className="list-disc pl-5 space-y-1 text-slate-600 text-[11px]">
             <li><strong>Leakage Prevention:</strong> Agency and sector track records are calculated strictly from snapshots prior to prediction month.</li>
-            <li><strong>Hold-Out Test Month:</strong> Evaluated on July 2026 snapshot (1,775 projects) having trained on April, May, June.</li>
-            <li><strong>Validated Metrics:</strong> Cost Model ROC-AUC 95.2%, Time Model ROC-AUC 98.7%, F1 96.0%, well-calibrated Brier score 0.040.</li>
-            <li><strong>Zero External APIs:</strong> Runs 100% locally without exposure of paid AI keys or security vulnerabilities.</li>
+            <li><strong>Forward target:</strong> Production scores estimate T+1 cost/time escalation; July has no observed future label and is a demonstration snapshot.</li>
+            <li><strong>Honest metrics:</strong> The latest generated report shows weak forward discrimination on only four monthly snapshots; scores are uncalibrated and limitations are explicit.</li>
+            <li><strong>Data boundary:</strong> The active dashboard is precomputed local data with FastAPI scenario inference; authentication is not implemented in this prototype.</li>
           </ul>
         </div>
       ),

@@ -1,76 +1,108 @@
 {
-  "test_month": "2026-07",
+  "model_version": "xgb-forward-t1-v1",
+  "feature_version": "features-v2-forward-t1",
+  "target": "forward_cost_risk_escalation",
   "test": {
-    "accuracy": 0.8963,
-    "precision": 0.9299,
-    "recall": 0.6432,
-    "f1": 0.7604,
-    "roc_auc": 0.9498,
-    "pr_auc": 0.8884,
-    "brier_score": 0.0807,
-    "sample_size": 1775,
-    "positive_rate": 0.2558
+    "accuracy": 0.959,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "roc_auc": 0.5766,
+    "pr_auc": 0.0516,
+    "brier_score": 0.041,
+    "confusion_matrix": [
+      [
+        1661,
+        0
+      ],
+      [
+        71,
+        0
+      ]
+    ],
+    "calibration_status": "uncalibrated",
+    "calibration_bins": [
+      {
+        "lower": 0.0,
+        "upper": 0.1,
+        "count": 1731,
+        "mean_predicted": 0.0009,
+        "observed_rate": 0.041017
+      },
+      {
+        "lower": 0.1,
+        "upper": 0.2,
+        "count": 1,
+        "mean_predicted": 0.135919,
+        "observed_rate": 0.0
+      }
+    ],
+    "expected_calibration_error": 0.0402,
+    "sample_size": 1732,
+    "positive_rate": 0.041,
+    "positive_count": 71,
+    "negative_count": 1661
   },
   "top_features": [
     {
-      "feature": "ministry_Ministry of Road Transport & Highways",
-      "importance": 0.052804745733737946
-    },
-    {
-      "feature": "cumulative_expenditure_cr",
-      "importance": 0.046625882387161255
-    },
-    {
-      "feature": "expenditure_pct_of_original",
-      "importance": 0.037963151931762695
-    },
-    {
-      "feature": "agency_National Highways Authority of India [NHAI]",
-      "importance": 0.035929061472415924
-    },
-    {
       "feature": "sector_Roads & Highways",
-      "importance": 0.03069586306810379
+      "importance": 0.1526947170495987
     },
     {
-      "feature": "approval_year",
-      "importance": 0.029149247333407402
+      "feature": "ministry_Ministry of Road Transport & Highways",
+      "importance": 0.12618501484394073
     },
     {
-      "feature": "ministry_Ministry of Coal",
-      "importance": 0.02477928251028061
-    },
-    {
-      "feature": "agency_NHAI",
-      "importance": 0.02129914052784443
+      "feature": "project_age_months",
+      "importance": 0.0746440663933754
     },
     {
       "feature": "ministry_Ministry of Petroleum & Natural Gas",
-      "importance": 0.019172344356775284
+      "importance": 0.07449030876159668
     },
     {
-      "feature": "sector_Railways",
-      "importance": 0.01794472150504589
+      "feature": "approval_to_start_months",
+      "importance": 0.06590553373098373
     },
     {
-      "feature": "sector_Coal",
-      "importance": 0.016989825293421745
+      "feature": "approval_year",
+      "importance": 0.06464043259620667
+    },
+    {
+      "feature": "expenditure_pct_of_original",
+      "importance": 0.0633399561047554
     },
     {
       "feature": "agency_hist_cost_overrun_pct",
-      "importance": 0.01567755825817585
+      "importance": 0.057513851672410965
     },
     {
-      "feature": "agency_NHIDCL",
-      "importance": 0.015638062730431557
+      "feature": "progress_per_age_month",
+      "importance": 0.05485254526138306
     },
     {
-      "feature": "sector_Oil & Gas",
-      "importance": 0.01476583257317543
+      "feature": "sector_hist_cost_overrun_pct",
+      "importance": 0.053792014718055725
     },
     {
-      "feature": "state_Gujarat",
-      "importance": 0.01474287174642086
+      "feature": "ministry_hist_cost_overrun_pct",
+      "importance": 0.05244852229952812
+    },
+    {
+      "feature": "cumulative_expenditure_cr",
+      "importance": 0.04726696014404297
+    },
+    {
+      "feature": "log_original_cost",
+      "importance": 0.03750323876738548
+    },
+    {
+      "feature": "planned_duration_months",
+      "importance": 0.032385729253292084
+    },
+    {
+      "feature": "progress_minus_expenditure_pct",
+      "importance": 0.02358769066631794
     }
   ]
 }

@@ -124,7 +124,7 @@ export const OverviewView = ({ data, onSelectProject, onNavigateToMonitoring, on
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-orange-600 font-mono">{kpi.schedule_risk_rate_pct}%</span>
-            <span className="text-[11px] text-slate-500">probability</span>
+            <span className="text-[11px] text-slate-500">threshold-exceedance rate</span>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-600 flex items-center justify-between">
             <span>Avg Schedule Slippage:</span>
@@ -142,7 +142,7 @@ export const OverviewView = ({ data, onSelectProject, onNavigateToMonitoring, on
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-amber-600 font-mono">{kpi.cost_risk_rate_pct}%</span>
-            <span className="text-[11px] text-slate-500">probability</span>
+            <span className="text-[11px] text-slate-500">threshold-exceedance rate</span>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-600 flex items-center justify-between">
             <span>Avg Cost Escalation:</span>

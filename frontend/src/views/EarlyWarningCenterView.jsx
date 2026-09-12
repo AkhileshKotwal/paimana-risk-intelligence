@@ -196,7 +196,7 @@ export const EarlyWarningCenterView = ({ alerts = [], projects = [], onSelectPro
         <ShieldAlert className="w-4 h-4 text-blue-700 flex-shrink-0 mt-0.5" />
         <div className="leading-relaxed text-[11px]">
           <strong className="text-blue-900">Prototype Attention-Priority Scoring Framework:</strong>{' '}
-          Priority = (Overall Risk × 0.4) + (Cost Risk × 0.2) + (Time Risk × 0.2) + min(Sanctioned Cost / 1000, 10) + (Uncompleted Progress % × 0.1). Clearly labeled as a prototype decision-support formula to assist authorities in triaging interventions.
+          Priority = Cost Risk × 0.35 + Schedule Risk × 0.30 + Forward Escalation × 0.15 + Project Scale × 0.20. These are prototype weighting assumptions for prioritization, not statistically proven or official government weights.
         </div>
       </div>
 
@@ -254,7 +254,7 @@ export const EarlyWarningCenterView = ({ alerts = [], projects = [], onSelectPro
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 text-xs">
                 <div className="p-3 bg-red-50/50 border border-red-100 rounded-lg">
                   <div className="text-[10px] font-bold uppercase text-red-800 tracking-wider">
-                    Deterministic Anomaly Trigger
+                    {alert.trigger_type === 'PREDICTIVE_SIGNAL' ? 'Forward ML Risk Signal' : 'Observed Execution Trigger'}
                   </div>
                   <div className="text-slate-900 font-medium mt-1">
                     {alert.primary_trigger}

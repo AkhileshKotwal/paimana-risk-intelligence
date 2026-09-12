@@ -24,7 +24,7 @@ export default function App() {
       try {
         const dataset = await getData();
         setData(dataset);
-        // Default selected project to first flagship showcase project (e.g. Solan-Kaithlighat)
+        // Default selected project comes from the current generated priority ranking.
         if (dataset?.demo_projects?.length > 0) {
           setSelectedProject(dataset.demo_projects[0]);
         } else if (dataset?.projects?.length > 0) {

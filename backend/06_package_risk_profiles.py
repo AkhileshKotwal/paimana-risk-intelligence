@@ -2,9 +2,9 @@
 PAIMANA SIH 26103 - Generate Comprehensive Risk Profiles & Early Warnings (July 2026)
 Uses trained, leakage-safe production models to score all 1,775 ongoing projects.
 Computes:
-  - Calibrated Cost Overrun Probability (%)
-  - Calibrated Time Overrun Probability (%)
-  - Forward Delay Escalation Probability (%)
+    - Uncalibrated forward Cost Risk Score (%)
+    - Uncalibrated forward Time Risk Score (%)
+    - Forward Delay Escalation Score (%)
   - Composite Priority Score (0-100)
   - 4-Tier Risk Classification (CRITICAL, HIGH, MEDIUM, LOW)
   - Emerging Risk Flags (e.g., Stagnant Progress + High Burn, Looming Deadline)
@@ -15,6 +15,12 @@ import json
 import joblib
 import numpy as np
 import pandas as pd
+from datetime import datetime, timezone
+
+try:
+    from backend.risk_scoring import calculate_priority_score, determine_risk_band, RISK_SCORING_VERSION
+except ModuleNotFoundError:
+    from risk_scoring import calculate_priority_score, determine_risk_band, RISK_SCORING_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,30 +43,6 @@ TIME_FEATURES = [
 ]
 
 CATEGORICAL_FEATURES = ["agency", "ministry", "sector", "state"]
-
-
-def calculate_priority_score(row, w_cost=0.35, w_time=0.30, w_esc=0.15, w_scale=0.20):
-    cost_r = row.get("cost_risk_pct", 0.0)
-    time_r = row.get("time_risk_pct", 0.0)
-    esc_r = row.get("forward_escalation_risk_pct", 0.0)
-    
-    # Capital scale factor (log normalized up to ₹50,000 Cr)
-    cost_cr = max(row.get("original_cost_cr") or 0.0, 1.0)
-    scale_factor = min(100.0, (np.log10(cost_cr) / np.log10(50000.0)) * 100.0)
-    
-    score = (w_cost * cost_r) + (w_time * time_r) + (w_esc * esc_r) + (w_scale * scale_factor)
-    return round(float(np.clip(score, 0.0, 100.0)), 1)
-
-
-def determine_risk_band(priority_score, cost_risk, time_risk):
-    if priority_score >= 70.0 or (cost_risk >= 75.0 and time_risk >= 75.0):
-        return "CRITICAL"
-    elif priority_score >= 50.0 or cost_risk >= 65.0 or time_risk >= 65.0:
-        return "HIGH"
-    elif priority_score >= 30.0:
-        return "MEDIUM"
-    else:
-        return "LOW"
 
 
 def evaluate_emerging_flags(row):
@@ -123,15 +105,21 @@ def main():
     # Predict Risk Probabilities
     current_df["cost_risk_pct"] = np.round(cost_clf.predict_proba(current_df[COST_FEATURES + CATEGORICAL_FEATURES])[:, 1] * 100.0, 1)
     current_df["time_risk_pct"] = np.round(time_clf.predict_proba(current_df[TIME_FEATURES + CATEGORICAL_FEATURES])[:, 1] * 100.0, 1)
-    current_df["overall_risk_pct"] = np.round((current_df["cost_risk_pct"] + current_df["time_risk_pct"]) / 2.0, 1)
-    
     if esc_clf is not None:
         current_df["forward_escalation_risk_pct"] = np.round(esc_clf.predict_proba(current_df[TIME_FEATURES + CATEGORICAL_FEATURES])[:, 1] * 100.0, 1)
     else:
         current_df["forward_escalation_risk_pct"] = 0.0
+    current_df["overall_risk_pct"] = np.round(
+        (current_df["cost_risk_pct"] + current_df["time_risk_pct"] + current_df["forward_escalation_risk_pct"]) / 3.0, 1
+    )
 
     # Calculate Priority and Risk Bands
-    current_df["priority_score"] = current_df.apply(calculate_priority_score, axis=1)
+    current_df["priority_score"] = current_df.apply(
+        lambda row: calculate_priority_score(
+            row["cost_risk_pct"], row["time_risk_pct"],
+            row["forward_escalation_risk_pct"], row["original_cost_cr"]
+        ), axis=1
+    )
     current_df["risk_band"] = current_df.apply(
         lambda r: determine_risk_band(r["priority_score"], r["cost_risk_pct"], r["time_risk_pct"]), axis=1
     )
@@ -155,11 +143,27 @@ def main():
     out_dir = Path(args.output_json).parent
     out_dir.mkdir(parents=True, exist_ok=True)
     
-    current_df[export_cols].to_json(args.output_json, orient="records", indent=2)
+    metadata = {
+        "dataset_version": "paimana-panel-apr-jul-2026",
+        "model_version": "xgb-forward-t1-v1",
+        "feature_version": "features-v2-forward-t1",
+        "risk_scoring_version": RISK_SCORING_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "training_cutoff": "2026-06",
+        "evaluation_period": "2026-06 T+1 target",
+        "explanation_status": "SHAP not generated; no local SHAP values are claimed",
+    }
+    Path(args.output_json).write_text(
+        json.dumps({"metadata": metadata, "projects": current_df[export_cols].to_dict(orient="records")}, indent=2),
+        encoding="utf-8",
+    )
     current_df[export_cols].head(10).to_csv(args.top10_csv, index=False)
     
     emerging_df = current_df[current_df["has_emerging_risk"]][export_cols]
-    emerging_df.to_json(args.emerging_json, orient="records", indent=2)
+    Path(args.emerging_json).write_text(
+        json.dumps({"metadata": metadata, "projects": emerging_df[export_cols].to_dict(orient="records")}, indent=2),
+        encoding="utf-8",
+    )
 
     print(f"Generated {len(current_df):,} risk profiles for {latest_month}")
     print(f"Risk Band Distribution:\n{current_df['risk_band'].value_counts().to_string()}")

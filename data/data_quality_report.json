@@ -1,0 +1,20 @@
+{
+  "status": "pass",
+  "row_count": 7590,
+  "project_count": 2074,
+  "months": [
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07"
+  ],
+  "critical_issue_count": 0,
+  "warning_count": 1,
+  "issues": [
+    {
+      "severity": "warning",
+      "check": "revised_cost_below_original",
+      "count": 1307
+    }
+  ]
+}

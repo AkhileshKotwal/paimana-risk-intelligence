@@ -1,10 +1,10 @@
 """
-PAIMANA SIH 26103 - Multi-Model Benchmarking & Temporal Walk-Forward Training
+PAIMANA SIH 26103 - Forward-risk benchmarking and temporal walk-forward training
 Compares Logistic Regression, Random Forest, and XGBoost across chronological splits:
   - Fold 1: Train Apr 2026 -> Test May 2026
   - Fold 2: Train Apr+May 2026 -> Test Jun 2026
   - Fold 3: Train Apr+May+Jun 2026 -> Test Jul 2026 (Holdout Validation)
-Saves production calibrated models and comprehensive evaluation metrics.
+Saves production forward-risk models and comprehensive evaluation metrics.
 """
 from pathlib import Path
 import argparse
@@ -12,19 +12,25 @@ import json
 import joblib
 import numpy as np
 import pandas as pd
+import sys
+from datetime import datetime, timezone
+import sklearn
+import xgboost
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, average_precision_score, brier_score_loss
+    roc_auc_score, average_precision_score, brier_score_loss, confusion_matrix
 )
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
 
 ROOT = Path(__file__).resolve().parents[1]
+FEATURE_VERSION = "features-v2-forward-t1"
+MODEL_VERSION = "xgb-forward-t1-v1"
 
 COST_FEATURES = [
     "log_original_cost", "planned_duration_months", "approval_to_start_months",
@@ -62,6 +68,20 @@ def create_preprocessor(numeric_features, cat_features):
 
 def evaluate_predictions(y_true, y_prob, threshold=0.5):
     y_pred = (y_prob >= threshold).astype(int)
+    matrix = confusion_matrix(y_true, y_pred, labels=[0, 1]).tolist()
+    bins = []
+    edges = np.linspace(0.0, 1.0, 11)
+    for lower, upper in zip(edges[:-1], edges[1:]):
+        mask = (y_prob >= lower) & ((y_prob < upper) if upper < 1.0 else (y_prob <= upper))
+        if mask.any():
+            bins.append({
+                "lower": round(float(lower), 2),
+                "upper": round(float(upper), 2),
+                "count": int(mask.sum()),
+                "mean_predicted": round(float(y_prob[mask].mean()), 6),
+                "observed_rate": round(float(np.mean(y_true[mask])), 6),
+            })
+    ece = sum((item["count"] / len(y_true)) * abs(item["mean_predicted"] - item["observed_rate"]) for item in bins)
     return {
         "accuracy": round(float(accuracy_score(y_true, y_pred)), 4),
         "precision": round(float(precision_score(y_true, y_pred, zero_division=0)), 4),
@@ -70,8 +90,14 @@ def evaluate_predictions(y_true, y_prob, threshold=0.5):
         "roc_auc": round(float(roc_auc_score(y_true, y_prob)), 4),
         "pr_auc": round(float(average_precision_score(y_true, y_prob)), 4),
         "brier_score": round(float(brier_score_loss(y_true, y_prob)), 4),
+        "confusion_matrix": matrix,
+        "calibration_status": "uncalibrated",
+        "calibration_bins": bins,
+        "expected_calibration_error": round(float(ece), 4),
         "sample_size": int(len(y_true)),
-        "positive_rate": round(float(np.mean(y_true)), 4)
+        "positive_rate": round(float(np.mean(y_true)), 4),
+        "positive_count": int(np.sum(y_true)),
+        "negative_count": int(len(y_true) - np.sum(y_true)),
     }
 
 
@@ -179,10 +205,28 @@ def train_and_export_production_model(df, target_col, num_features, cat_features
     y_prob = prod_pipe.predict_proba(X_te)[:, 1]
     eval_metrics = evaluate_predictions(y_te, y_prob)
     
-    # Save model
+    # Save model and a sidecar contract manifest.
     out_file = Path(out_path)
     out_file.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(prod_pipe, out_file)
+    metadata = {
+        "model_version": MODEL_VERSION,
+        "feature_version": FEATURE_VERSION,
+        "target": target_col,
+        "model_type": "XGBClassifier",
+        "calibration_status": "uncalibrated",
+        "feature_columns": num_features + cat_features,
+        "training_months": [str(m)[:7] for m in sorted(train_data["month_dt"].unique())],
+        "evaluation_month": str(months[-1])[:7],
+        "training_cutoff": str(months[-1])[:7],
+        "python_version": sys.version.split()[0],
+        "numpy_version": np.__version__,
+        "pandas_version": pd.__version__,
+        "scikit_learn_version": sklearn.__version__,
+        "xgboost_version": xgboost.__version__,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    out_file.with_suffix(out_file.suffix + ".meta.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     print(f"Successfully trained and saved model pipeline to {out_file}")
     
     # Extract top feature importances
@@ -210,37 +254,38 @@ def main():
     df = pd.read_csv(args.input)
     df["month_dt"] = pd.to_datetime(df["month"] + "-01")
     
-    # 1. Benchmark Cost Overrun
+    # Production models are forward T+1 risk models. Current-state labels are
+    # retained in the feature store for monitoring analysis only.
     cost_benchmark = run_temporal_benchmark(
-        df, "is_cost_overrun", COST_FEATURES, CATEGORICAL_FEATURES, "Cost Overrun Monitor"
+        df, "forward_cost_risk_escalation", COST_FEATURES, CATEGORICAL_FEATURES, "Forward Cost Risk Escalation (T+1)"
     )
     
     # 2. Benchmark Time Overrun
     time_benchmark = run_temporal_benchmark(
-        df, "is_time_overrun", TIME_FEATURES, CATEGORICAL_FEATURES, "Time Overrun Monitor"
+        df, "forward_time_risk_escalation", TIME_FEATURES, CATEGORICAL_FEATURES, "Forward Time Risk Escalation (T+1)"
     )
     
     # 3. Benchmark Forward Time Escalation
     time_esc_benchmark = run_temporal_benchmark(
-        df, "forward_time_risk_escalation", TIME_FEATURES, CATEGORICAL_FEATURES, "Forward Time Escalation"
+        df, "forward_time_risk_escalation", TIME_FEATURES, CATEGORICAL_FEATURES, "Forward Time Risk Escalation (T+1)"
     )
     
     # 4. Train and save production models
-    print("\nTraining production models on historical snapshots (Apr, May, Jun) and validating on July 2026...")
+    print("\nTraining production forward-risk models on historical snapshots and evaluating on the latest known T+1 month...")
     cost_metrics, top_cost_features = train_and_export_production_model(
-        df, "is_cost_overrun", COST_FEATURES, CATEGORICAL_FEATURES,
+        df, "forward_cost_risk_escalation", COST_FEATURES, CATEGORICAL_FEATURES,
         ROOT / "backend" / "models" / "cost_monitor.joblib"
     )
     (ROOT / "results" / "cost_monitor_metrics.json").write_text(
-        json.dumps({"test_month": "2026-07", "test": cost_metrics, "top_features": top_cost_features}, indent=2)
+        json.dumps({"model_version": MODEL_VERSION, "feature_version": FEATURE_VERSION, "target": "forward_cost_risk_escalation", "test": cost_metrics, "top_features": top_cost_features}, indent=2)
     )
     
     time_metrics, top_time_features = train_and_export_production_model(
-        df, "is_time_overrun", TIME_FEATURES, CATEGORICAL_FEATURES,
+        df, "forward_time_risk_escalation", TIME_FEATURES, CATEGORICAL_FEATURES,
         ROOT / "backend" / "models" / "time_monitor.joblib"
     )
     (ROOT / "results" / "time_monitor_metrics.json").write_text(
-        json.dumps({"test_month": "2026-07", "test": time_metrics, "top_features": top_time_features}, indent=2)
+        json.dumps({"model_version": MODEL_VERSION, "feature_version": FEATURE_VERSION, "target": "forward_time_risk_escalation", "test": time_metrics, "top_features": top_time_features}, indent=2)
     )
     
     esc_metrics, top_esc_features = train_and_export_production_model(
@@ -254,25 +299,31 @@ def main():
             "total_snapshot_records": len(df),
             "months": [str(m)[:7] for m in sorted(df["month_dt"].unique())],
             "validation_design": "Sequential Walk-Forward Temporal Cross-Validation (Leakage-Safe)",
-            "leakage_prevention": "Strict pre-snapshot expanding window aggregation for agency/sector/ministry historical performance"
+            "leakage_prevention": "Strict pre-snapshot expanding window aggregation; T+1 targets require contiguous next-month observations",
+            "target_design": "Production models predict whether the next contiguous monthly snapshot enters or escalates overrun risk. July has no observed T+1 target and is scored for demonstration only.",
+            "model_version": MODEL_VERSION,
+            "feature_version": FEATURE_VERSION,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         },
         "cost_overrun_model": {
             "benchmark": cost_benchmark,
-            "selected_production_model": "Calibrated XGBoost Classifier",
-            "holdout_july_2026_performance": cost_metrics,
-            "top_drivers": top_cost_features
+            "selected_production_model": "XGBoost Classifier (uncalibrated)",
+            "target": "forward_cost_risk_escalation",
+            "holdout_performance": cost_metrics,
+            "top_features": top_cost_features
         },
         "time_overrun_model": {
             "benchmark": time_benchmark,
-            "selected_production_model": "Calibrated XGBoost Classifier",
-            "holdout_july_2026_performance": time_metrics,
-            "top_drivers": top_time_features
+            "selected_production_model": "XGBoost Classifier (uncalibrated)",
+            "target": "forward_time_risk_escalation",
+            "holdout_performance": time_metrics,
+            "top_features": top_time_features
         },
         "forward_time_escalation_model": {
             "benchmark": time_esc_benchmark,
             "selected_production_model": "XGBoost Classifier",
-            "holdout_july_2026_performance": esc_metrics,
-            "top_drivers": top_esc_features
+            "holdout_performance": esc_metrics,
+            "top_features": top_esc_features
         }
     }
     
